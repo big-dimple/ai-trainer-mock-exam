@@ -137,6 +137,12 @@ function weight(q) {
   return w;
 }
 const mastered = q => (P.q[q.id]?.streak || 0) >= (q.src === Y26 ? GATE.objStreak : 2);
+const gradNeed = q => q.src === Y26 ? GATE.objStreak : 2;
+// 毕业进度徽标：还差几次点击“记住了”才移出未掌握
+const gradBadge = q => {
+  const st = P.q[q.id]?.streak || 0, need = gradNeed(q);
+  return st >= need ? `<span class="tag ok">已毕业</span>` : `<span class="tag" title="连续点“记住了”${need}次才毕业">再记 ${need - st} 次毕业</span>`;
+};
 const passedSubj = (q, th) => (P.q[q.id]?.last ?? -1) >= th;
 function y26Stats() {
   const objs = BANK.filter(q => q.src === Y26 && isObj(q));
@@ -635,7 +641,7 @@ VIEWS['practice-run'] = () => {
   }
   $('#view').innerHTML = `<div class="row"><h1 style="margin:0">${esc(PR.title)}</h1><span class="spacer"></span><span class="label">第 ${PR.i + 1} / ${PR.list.length} 题 · 得分 ${Math.round(PR.got * 10) / 10}</span></div>
   <div class="bar" style="margin:10px 0 16px"><i style="width:${PR.i / PR.list.length * 100}%;background:var(--pri)"></i></div>
-  <div class="q"><div class="qhead"><span class="tag">${TYPE[q.type]}${q.type === 'multi' ? '（多选）' : ''}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}${q.no ? ' 第' + q.no + '题' : ''}</span>${P.q[q.id] ? `<span class="label">做过 ${P.q[q.id].seen} 次</span>` : ''}</div>${body}</div>
+  <div class="q"><div class="qhead"><span class="tag">${TYPE[q.type]}${q.type === 'multi' ? '（多选）' : ''}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}${q.no ? ' 第' + q.no + '题' : ''}</span>${gradBadge(q)}${P.q[q.id] ? `<span class="label">做过 ${P.q[q.id].seen} 次</span>` : ''}</div>${body}</div>
   <div class="row">${PR.i > 0 ? '<button class="btn" onclick="PR.i--;VIEWS[\'practice-run\']()">上一题</button>' : ''}<span class="spacer"></span>
   <button class="btn" onclick="practiceSummary()">结束练习</button>${done ? `<button class="btn pri" id="nextBtn" onclick="PR.i++;VIEWS['practice-run']()">下一题 →</button>` : ''}</div>`;
   const box = $('#opts');
@@ -1028,7 +1034,7 @@ VIEWS['memorize-run'] = () => {
     <span class="label">第 ${MEM.i + 1} / ${MEM.list.length} 题 · 已记 ${MEM.done} · 记住率 ${MEM.done ? Math.round(MEM.right / MEM.done * 100) : 0}% · 连续 3 次记住移出未掌握</span></div>
     <div class="bar" style="margin:10px 0 16px"><i style="width:${(MEM.i + (MEM.flipped ? 1 : 0)) / MEM.list.length * 100}%;background:var(--pri)"></i></div>
     <div class="q mem-card" id="mem-card">
-      <div class="qhead"><span class="tag">${TYPE[q.type]}${q.type === 'multi' ? '（多选）' : ''}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}</span>${q.no ? `<span class="label">第 ${q.no} 题</span>` : ''}<span class="label">${P.q[q.id] ? '历史做过 ' + P.q[q.id].seen + ' 次' : '没做过'}</span></div>
+      <div class="qhead"><span class="tag">${TYPE[q.type]}${q.type === 'multi' ? '（多选）' : ''}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}</span>${q.no ? `<span class="label">第 ${q.no} 题</span>` : ''}${gradBadge(q)}<span class="label">${P.q[q.id] ? '历史做过 ' + P.q[q.id].seen + ' 次' : '没做过'}</span></div>
       <div class="stem">${esc(q.stem)}</div>
       ${body}
       ${back}
