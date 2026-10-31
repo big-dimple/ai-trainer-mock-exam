@@ -494,6 +494,14 @@ async function renderExamResult() {
   loadRefs();
   if (hasShort && S.submitted) watchGrading(S.id);
 }
+/* 人话版答案：口诀 + 费曼式口语得分句，考场能背能写 */
+function plainHtml(q) {
+  if (!q.plain) return '';
+  const lines = q.plain.feynman.split('\n').filter(l => l.trim());
+  return `<div class="plain-answer"><b>🗣️ 人话版（背这个就够，沾边就给分）</b>
+    ${lines.map(l => `<p>${esc(l)}</p>`).join('')}
+    ${q.plain.mnemonic ? `<div class="plain-mnemonic">🧷 口诀：${esc(q.plain.mnemonic)}</div>` : ''}</div>`;
+}
 function reviewQ(q, a, r, i) {
   const head = `<div class="qhead"><b>${i + 1}.</b><span class="tag">${TYPE[q.type]}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}</span><span>${r ? r.got + ' / ' + r.pts + ' 分' : ''}</span></div>`;
   if (q.type === 'short') {
@@ -514,13 +522,13 @@ function objBody(q, a, showResult) {
 }
 const explainBox = q => `<div class="explain"><div>${esc(q.explain)}</div><div class="think">💡 ${esc(q.thinking)}</div></div>`;
 function shortFeedback(q, k) {
-  const table = `<h3>${k ? `关键词预估：${k.got} / ${k.max}` : '评分要点'}</h3>
-    <table class="rubric"><tr><th>得分点</th><th>分值</th>${k ? '<th>命中关键词</th>' : ''}</tr>
+  const table = `<h3>${k ? `关键词预估：${k.got} / ${k.max}` : '评分要点'}</h3>    <table class="rubric"><tr><th>得分点</th><th>分值</th>${k ? '<th>命中关键词</th>' : ''}</tr>
     ${(k ? k.detail : q.rubric.map(x => ({ point: x.point, score: x.score, hits: [] }))).map(d => `<tr class="${k ? (d.hits.length ? 'hit' : 'miss') : ''}"><td>${k ? (d.hits.length ? '✓ ' : '✗ ') : ''}${esc(d.point)}</td><td>${k ? d.got + '/' : ''}${d.score}</td>${k ? `<td>${esc(d.hits.join('、')) || '—'}</td>` : ''}</tr>`).join('')}
     </table>`;
   const think = `<h3>答题思路</h3><div class="explain md">${md(q.thinking)}</div>`;
-  if (q.points) return pointsHtml(q) + think + table;
-  return table + think + `<h3>参考答案</h3><div class="md ref" data-qid="${q.id}">${q.reference ? md(q.reference) : '加载中…'}</div>`;
+  const plain = plainHtml(q);
+  if (q.points) return plain + pointsHtml(q) + think + table;
+  return plain + table + think + `<h3>参考答案</h3><div class="md ref" data-qid="${q.id}">${q.reference ? md(q.reference) : '加载中…'}</div>`;
 }
 
 /* ====== 结构化参考答案：考场速写版为主，每行可展开理解，支持背诵模式 ====== */
@@ -714,6 +722,7 @@ async function viewCase(id) {
     <div class="split-col" id="case-right">
       <div class="split-head">✅ 参考答案 <span class="spacer"></span>${c.points ? jump('sec-card', '答题卡') : ''}${jump('sec-ck', '评分要点')}${c.thinking ? jump('sec-th', '答题思路') : ''}${jump('sec-full', c.points ? '完整版' : '参考答案')}${c.templateDoc ? jump('sec-tpl', '模板') : ''}</div>
       ${c.points ? `<div id="sec-card">${pointsHtml(c)}</div>` : ''}
+      ${plainHtml(c)}
       <h3 id="sec-ck">评分要点 checklist</h3>${checklistTable(c)}
       ${c.thinking ? `<h3 id="sec-th">答题思路</h3><div class="explain md">${md(c.thinking)}</div>` : ''}
       ${c.points ? `<details id="sec-full" class="full-ref"><summary>完整参考答案（文档版，备查）</summary><div id="sec-ref" class="md">加载中…</div></details>`

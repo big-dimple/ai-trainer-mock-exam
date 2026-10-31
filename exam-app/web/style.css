@@ -165,6 +165,11 @@ textarea.big{min-height:520px}
 .mem-flipbtn{width:100%;padding:14px;font-size:16px;margin-top:12px}
 .mem-grade{display:flex;gap:10px;margin-top:14px}
 .mem-grade .btn{flex:1;padding:13px;font-size:15px;justify-content:center}
+/* 人话版答案 */
+.plain-answer{background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px 16px;margin:10px 0}
+.plain-answer>b{color:#15803d}
+.plain-answer p{margin:5px 0;font-family:var(--font-read)}
+.plain-mnemonic{margin-top:8px;padding-top:6px;border-top:1px dashed #bbf7d0;color:#15803d;font-weight:700}
 kbd{background:#eef1f6;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:12px}
 .mem-hint{display:none}
 
