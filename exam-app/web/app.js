@@ -54,8 +54,18 @@ const toast = (t, ms = 2200) => { const el = $('#toast'); el.textContent = t; el
 const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 /* ====== API ====== */
+// 每个浏览器自动分配独立身份：进度/答卷按用户隔离，多人共用互不干扰
+const UID = localStorage.getItem('examUid') || (() => {
+  const u = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  localStorage.setItem('examUid', u);
+  return u;
+})();
+const LS_KEY = 'progress_' + UID;
+if (!localStorage.getItem(LS_KEY) && localStorage.getItem('progress'))
+  localStorage.setItem(LS_KEY, localStorage.getItem('progress'));  // 从旧存档迁移一次
 async function api(path, body) {
-  const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const headers = { 'X-Exam-Uid': UID };
+  const r = await fetch(path, body === undefined ? { headers } : { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   if (!r.ok) throw new Error(path + ' ' + r.status);
   return r.json();
 }
@@ -63,7 +73,7 @@ let saveT = null;
 function saveProgress() {
   clearTimeout(saveT);
   saveT = setTimeout(() => {
-    localStorage.setItem('progress', JSON.stringify(P));
+    localStorage.setItem(LS_KEY, JSON.stringify(P));
     api('/api/progress', P).catch(() => { });
   }, 400);
 }
@@ -1122,7 +1132,7 @@ if (window.mermaid) new MutationObserver(() => {
   CONF = await api('/api/config').catch(() => ({ llm: false }));
   let p = null;
   try { p = await api('/api/progress'); } catch { }
-  if (!p || !Object.keys(p).length) p = JSON.parse(localStorage.getItem('progress') || 'null');
+  if (!p || !Object.keys(p).length) p = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
   P = initProgress(p);
   go('home');
 })();

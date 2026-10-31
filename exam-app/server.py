@@ -13,14 +13,15 @@ APP = pathlib.Path(__file__).resolve().parent
 ROOT = APP.parent
 WEB = APP / "web"
 BANK = APP / "data" / "bank"
-PROGRESS = APP / "data" / "progress.json"
+PROGRESS_DIR = APP / "data" / "progress"   # 按浏览器用户隔离的进度目录
+PROGRESS = APP / "data" / "progress.json"  # 旧版单用户进度文件，首次访问时迁移给第一个用户
 SUBMIT = APP / "submissions"
 FEEDBACK = APP / "feedback"
 DOCS = ROOT / "备考输出"
 CONFIG = APP / "config.json"
 LOCK = threading.Lock()
 
-for d in (SUBMIT, FEEDBACK, PROGRESS.parent):
+for d in (SUBMIT, FEEDBACK, PROGRESS_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
 
@@ -59,15 +60,15 @@ _BANK_CACHE = {"mtime": None, "payload": None}
 
 
 def backup_progress():
-    """启动时给 progress.json 做滚动备份（每天一份，保留最近 10 份），防误覆盖丢进度。"""
-    if not PROGRESS.is_file():
-        return
+    """启动时给所有用户进度做滚动备份（每天每用户一份，保留最近 30 份），防误覆盖丢进度。"""
     bak = PROGRESS.parent / "backups"
     bak.mkdir(exist_ok=True)
-    dst = bak / f"progress-{time.strftime('%Y%m%d')}.json"
-    if not dst.exists():
-        shutil.copy2(PROGRESS, dst)
-    for old in sorted(bak.glob("progress-*.json"))[:-10]:
+    files = ([PROGRESS] if PROGRESS.is_file() else []) + sorted(PROGRESS_DIR.glob("*.json"))
+    for f in files:
+        dst = bak / f"{f.stem}-{time.strftime('%Y%m%d')}.json"
+        if not dst.exists():
+            shutil.copy2(f, dst)
+    for old in sorted(bak.glob("*.json"))[:-30]:
         old.unlink(missing_ok=True)
 
 
@@ -157,6 +158,23 @@ class H(SimpleHTTPRequestHandler):
             raise ValueError("body too large")
         return json.loads(self.rfile.read(n).decode("utf-8")) if n else {}
 
+    def _uid(self):
+        """浏览器自动分配的身份 ID（前端 X-Exam-Uid 头），用于进度/答卷按用户隔离。"""
+        u = self.headers.get("X-Exam-Uid") or parse_qs(urlparse(self.path).query).get("uid", [""])[0]
+        u = "".join(c for c in str(u) if c.isalnum() or c in "-_")[:40]
+        return u or "default"
+
+    def _scope(self, name):
+        """把答卷 id 映射到当前用户的命名空间（文件名前缀）。"""
+        return f"{self._uid()}--{name}"
+
+    def _unscope(self, scoped):
+        pre = f"{self._uid()}--"
+        return scoped[len(pre):] if scoped.startswith(pre) else scoped
+
+    def _progress_file(self):
+        return PROGRESS_DIR / f"{self._uid()}.json"
+
     def do_GET(self):
         if not self._authed():
             return
@@ -168,7 +186,15 @@ class H(SimpleHTTPRequestHandler):
         if p == "/api/bank":
             return self._json(load_bank())
         if p == "/api/progress":
-            return self._json(read_json(PROGRESS, {}))
+            pf = self._progress_file()
+            data = read_json(pf, None)
+            if data is None:
+                # 旧版单用户进度迁移：目录还没有任何用户文件时，把旧文件给第一个访问者
+                with LOCK:
+                    if PROGRESS.is_file() and not any(PROGRESS_DIR.glob("*.json")):
+                        shutil.copy2(PROGRESS, pf)
+                data = read_json(pf, {})
+            return self._json(data)
         if p == "/api/doc":
             name = unquote(parse_qs(u.query).get("name", [""])[0])
             f = (DOCS / name).resolve()
@@ -177,21 +203,21 @@ class H(SimpleHTTPRequestHandler):
             return self._json({"name": name, "text": f.read_text(encoding="utf-8")})
         if p == "/api/submissions":
             out = []
-            for f in sorted(SUBMIT.glob("*.json"), reverse=True):
+            for f in sorted(SUBMIT.glob(f"{self._uid()}--*.json"), reverse=True):
                 s = read_json(f, {})
-                sid = s.get("id") or f.stem
+                sid = self._unscope(s.get("id") or f.stem)
                 out.append({"id": sid, "created": s.get("created"), "kind": s.get("kind"),
                             "title": s.get("title"), "autoScore": s.get("autoScore"), "maxScore": s.get("maxScore"),
                             "hasSubjective": bool(s.get("subjective")),
-                            "feedback": read_json(FEEDBACK / f.name, None), "grading": GRADING.get(sid)})
+                            "feedback": read_json(FEEDBACK / f.name, None), "grading": GRADING.get(f.stem)})
             return self._json(out)
         if p.startswith("/api/submission/"):
-            sid = p.rsplit("/", 1)[-1]
-            s = read_json(SUBMIT / f"{sid}.json", None)
+            scoped = self._scope(p.rsplit("/", 1)[-1])
+            s = read_json(SUBMIT / f"{scoped}.json", None)
             if s is None:
                 return self._json({"error": "not found"}, 404)
-            return self._json({"submission": s, "feedback": read_json(FEEDBACK / f"{sid}.json", None),
-                               "grading": GRADING.get(sid)})
+            return self._json({"submission": s, "feedback": read_json(FEEDBACK / f"{scoped}.json", None),
+                               "grading": GRADING.get(scoped)})
         return super().do_GET()
 
     def do_POST(self):
@@ -208,21 +234,22 @@ class H(SimpleHTTPRequestHandler):
             if not isinstance(body, dict):
                 return self._json({"error": "progress must be an object"}, 400)
             with LOCK:
-                write_json(PROGRESS, body)
+                write_json(self._progress_file(), body)
             return self._json({"ok": True})
         if p == "/api/submit":
             sid = "".join(c for c in str(body.get("id") or time.strftime("%Y%m%d-%H%M%S")) if c.isalnum() or c in "-_")
             body["id"] = sid
+            scoped = self._scope(sid)
             with LOCK:
-                write_json(SUBMIT / f"{sid}.json", body)
-            grading = CFG["llm"].get("auto_grade") and start_grading(sid)
+                write_json(SUBMIT / f"{scoped}.json", body)
+            grading = CFG["llm"].get("auto_grade") and start_grading(scoped)
             return self._json({"ok": True, "id": sid, "grading": bool(grading)})
         if p.startswith("/api/grade/"):
-            sid = p.rsplit("/", 1)[-1]
+            scoped = self._scope(p.rsplit("/", 1)[-1])
             if not LLM_CLIENT.ok:
                 return self._json({"ok": False, "error": "服务端未配置评卷模型"}, 400)
-            (FEEDBACK / f"{sid}.json").unlink(missing_ok=True)
-            return self._json({"ok": start_grading(sid)})
+            (FEEDBACK / f"{scoped}.json").unlink(missing_ok=True)
+            return self._json({"ok": start_grading(scoped)})
         return self._json({"error": "unknown"}, 404)
 
 
