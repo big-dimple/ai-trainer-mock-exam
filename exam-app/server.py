@@ -5,7 +5,7 @@ python server.py                 本机使用  http://127.0.0.1:8848
 HOST=0.0.0.0 python server.py    公网/局域网部署（务必在 config.json 设置 auth 密码）
 配置：config.json（参考 config.example.json），环境变量可覆盖。
 """
-import base64, json, os, sys, time, pathlib, threading, webbrowser
+import base64, json, os, shutil, sys, time, pathlib, threading, webbrowser
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs, unquote
 
@@ -35,6 +35,40 @@ def write_json(p, obj):
     tmp = p.with_suffix(".tmp")
     tmp.write_text(json.dumps(obj, ensure_ascii=False, indent=1), encoding="utf-8")
     os.replace(tmp, p)
+
+
+def load_bank():
+    """题库缓存：任一 bank 文件变动（含增删）自动重建，避免每次请求重读全部文件。"""
+    mt = max((f.stat().st_mtime for f in BANK.glob("*.json")), default=0)
+    if _BANK_CACHE["mtime"] != mt:
+        items, files = [], []
+        for f in sorted(BANK.glob("*.json")):
+            data = read_json(f, None)
+            if not isinstance(data, list):
+                files.append({"file": f.name, "error": "invalid json"})
+                continue
+            for q in data:
+                q["_file"] = f.name
+            items.extend(data)
+            files.append({"file": f.name, "count": len(data)})
+        _BANK_CACHE.update(mtime=mt, payload={"items": items, "files": files})
+    return _BANK_CACHE["payload"]
+
+
+_BANK_CACHE = {"mtime": None, "payload": None}
+
+
+def backup_progress():
+    """启动时给 progress.json 做滚动备份（每天一份，保留最近 10 份），防误覆盖丢进度。"""
+    if not PROGRESS.is_file():
+        return
+    bak = PROGRESS.parent / "backups"
+    bak.mkdir(exist_ok=True)
+    dst = bak / f"progress-{time.strftime('%Y%m%d')}.json"
+    if not dst.exists():
+        shutil.copy2(PROGRESS, dst)
+    for old in sorted(bak.glob("progress-*.json"))[:-10]:
+        old.unlink(missing_ok=True)
 
 
 def load_config():
@@ -132,17 +166,7 @@ class H(SimpleHTTPRequestHandler):
             return self._json({"llm": LLM_CLIENT.ok, "model": LLM_CLIENT.model if LLM_CLIENT.ok else None,
                                "auto_grade": bool(CFG["llm"].get("auto_grade"))})
         if p == "/api/bank":
-            items, files = [], []
-            for f in sorted(BANK.glob("*.json")):
-                data = read_json(f, None)
-                if not isinstance(data, list):
-                    files.append({"file": f.name, "error": "invalid json"})
-                    continue
-                for q in data:
-                    q["_file"] = f.name
-                items.extend(data)
-                files.append({"file": f.name, "count": len(data)})
-            return self._json({"items": items, "files": files})
+            return self._json(load_bank())
         if p == "/api/progress":
             return self._json(read_json(PROGRESS, {}))
         if p == "/api/doc":
@@ -178,7 +202,11 @@ class H(SimpleHTTPRequestHandler):
             body = self._body()
         except Exception as e:
             return self._json({"error": str(e)}, 400)
+        if not isinstance(body, dict):
+            return self._json({"error": "body must be a JSON object"}, 400)
         if p == "/api/progress":
+            if not isinstance(body, dict):
+                return self._json({"error": "progress must be an object"}, 400)
             with LOCK:
                 write_json(PROGRESS, body)
             return self._json({"ok": True})
@@ -199,6 +227,7 @@ class H(SimpleHTTPRequestHandler):
 
 
 def main():
+    backup_progress()
     if os.name == "nt":
         ThreadingHTTPServer.allow_reuse_address = False  # Windows 上允许重复绑定会让新旧进程同时监听同一端口
     host, port = CFG["host"], int(CFG["port"])

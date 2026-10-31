@@ -918,7 +918,7 @@ if (window.mermaid) new MutationObserver(() => {
     const bad = r.files.filter(f => f.error);
     if (bad.length) toast('以下题库文件解析失败：' + bad.map(f => f.file).join(','), 5000);
   } catch (e) {
-    $('#view').innerHTML = '<div class="card notice">无法连接本地服务。请在 exam-app 目录运行 <code>python server.py</code> 后访问 http://127.0.0.1:8765/</div>';
+    $('#view').innerHTML = '<div class="card notice">无法连接本地服务。请在 exam-app 目录运行 <code>python server.py</code> 后访问 http://127.0.0.1:8848/</div>';
     return;
   }
   BANK.forEach(q => BYID[q.id] = q);

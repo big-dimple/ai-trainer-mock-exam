@@ -10,6 +10,8 @@ ExecStart=/usr/bin/python3 server.py --no-browser
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
+# 可选：用环境变量注入访问密码与模型配置（密钥不落 git，见 deploy/env.example）
+EnvironmentFile=-/etc/ai-trainer-exam.env
 
 [Install]
 WantedBy=multi-user.target
