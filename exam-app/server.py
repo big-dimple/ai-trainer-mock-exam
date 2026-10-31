@@ -95,9 +95,33 @@ from grader import LLM, grade_submission  # noqa: E402
 LLM_CLIENT = LLM(CFG["llm"])
 GRADING = {}  # sid -> {"status": "grading"|"error", "done": n, "total": n, "error": str}
 
+# ---- 评卷限流：防止公开访问时 API 额度被恶意刷爆 ----
+GRADE_SEM = threading.Semaphore(2)     # 全局最多 2 个并发评卷
+RATE_LOCK = threading.Lock()
+RATE_IP = {}                           # ip -> [时间戳]，每 IP 每小时最多触发 8 次
+RATE_UID = {}                          # uid -> [时间戳]，每用户每天最多 20 次
+RATE_IP_MAX, RATE_IP_WIN = 8, 3600
+RATE_UID_MAX, RATE_UID_WIN = 20, 86400
 
-def start_grading(sid):
+
+def _rate_ok(store, key, max_n, window):
+    now = time.time()
+    with RATE_LOCK:
+        arr = [t for t in store.get(key, []) if now - t < window]
+        if len(arr) >= max_n:
+            store[key] = arr
+            return False
+        arr.append(now)
+        store[key] = arr
+        return True
+
+
+def start_grading(sid, ip="", uid=""):
     if not LLM_CLIENT.ok or GRADING.get(sid, {}).get("status") == "grading":
+        return False
+    if not _rate_ok(RATE_IP, ip or "?", RATE_IP_MAX, RATE_IP_WIN) or \
+       not _rate_ok(RATE_UID, uid or sid, RATE_UID_MAX, RATE_UID_WIN):
+        print(f"[评卷限流] ip={ip} uid={uid} sid={sid}", flush=True)
         return False
     sub = read_json(SUBMIT / f"{sid}.json", None)
     if not sub or not sub.get("subjective"):
@@ -108,7 +132,8 @@ def start_grading(sid):
         def prog(d, n):
             GRADING[sid].update(done=d, total=n)
         try:
-            grade_submission(LLM_CLIENT, sid, prog)
+            with GRADE_SEM:  # 并发评卷最多 2 个，超出排队
+                grade_submission(LLM_CLIENT, sid, prog)
             GRADING.pop(sid, None)
             print(f"[评卷完成] {sid}", flush=True)
         except Exception as e:
@@ -242,14 +267,14 @@ class H(SimpleHTTPRequestHandler):
             scoped = self._scope(sid)
             with LOCK:
                 write_json(SUBMIT / f"{scoped}.json", body)
-            grading = CFG["llm"].get("auto_grade") and start_grading(scoped)
+            grading = CFG["llm"].get("auto_grade") and start_grading(scoped, self.client_address[0], self._uid())
             return self._json({"ok": True, "id": sid, "grading": bool(grading)})
         if p.startswith("/api/grade/"):
             scoped = self._scope(p.rsplit("/", 1)[-1])
             if not LLM_CLIENT.ok:
                 return self._json({"ok": False, "error": "服务端未配置评卷模型"}, 400)
             (FEEDBACK / f"{scoped}.json").unlink(missing_ok=True)
-            return self._json({"ok": start_grading(scoped)})
+            return self._json({"ok": start_grading(scoped, self.client_address[0], self._uid())})
         return self._json({"error": "unknown"}, 404)
 
 

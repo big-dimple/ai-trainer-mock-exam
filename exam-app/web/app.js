@@ -261,7 +261,7 @@ VIEWS.home = () => {
   <div class="card y26card">
     <div class="row"><h3 style="margin:0">🎯 2026 样卷 · 原题熟练</h3>
       ${ys.unlocked ? `<span class="tag ok">第二阶段 · 变式题（${esc(P.settings.stage2At)} 达标）</span>` : '<span class="tag y26">第一阶段 · 只练原题</span>'}
-      <span class="spacer"></span><span class="label">${ys.unlocked ? '原题已熟练，可在 Cursor 聊天里说“出变式题”' : '四项熟练标准全部达标后，再进入变式题阶段'}</span></div>
+      <span class="spacer"></span><span class="label">${ys.unlocked ? '原题已熟练，可以进入变式题阶段' : '四项熟练标准全部达标后，再进入变式题阶段'}</span></div>
     <div class="row" style="margin:10px 0 6px;align-items:baseline"><div class="stat">${ys.mastered}<small> / ${ys.total} 客观题已熟练（${pct(ys.mastered)}%）</small></div>
       <span class="label">做过 ${ys.seen} · 错题本中 ${ys.wrong} · 简答/实操练过 ${ys.subjDone} / ${ys.subj.length}</span></div>
     <div class="bar"><i style="width:${pct(ys.mastered)}%;background:var(--ok)"></i></div>
@@ -303,7 +303,7 @@ VIEWS.home = () => {
       ${untried.length ? `<div class="label" style="margin-top:8px">未练过：${untried.map(x => KP[x.k]).join('、')}</div>` : ''}
       <h3>题库</h3>
       <div class="label">客观题 ${objCount} · 简答 ${shortCount} · 实操/综合 ${caseCount}（2026 样卷 ${BANK.filter(q => q.src === Y26).length} 道 · 2025 真题 ${BANK.filter(q => q.src === Y25).length} 道）</div>
-      <div class="notice" style="margin-top:10px">${CONF.llm ? `主观题交卷后由 <b>${esc(CONF.model)}</b> 自动评卷，结果在交卷页和“评卷记录”中显示。` : '服务端未配置评卷模型。'}需要按短板追加新题时，在 Cursor 聊天里说 <b>“评卷”</b>。</div>
+      <div class="notice" style="margin-top:10px">${CONF.llm ? `主观题交卷后由 <b>${esc(CONF.model)}</b> 自动评卷，结果在交卷页和“评卷记录”中显示。` : '服务端未配置评卷模型，主观题暂按关键词预估打分。'}</div>
     </div>
   </div>
   <div class="card"><h3 style="margin-top:0">知识点掌握度（越靠前越弱）</h3>
@@ -325,7 +325,7 @@ VIEWS.exam = () => {
     <h3 style="margin-top:0">组卷设置</h3>
     <div class="row" style="margin-bottom:12px">
       <label>试卷类型 <select id="cfg">${Object.entries(EXAM_CFG).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('')}</select></label>
-      <label>补足题源 <select id="srcSel"><option value="all">全部（真题 + 新编）</option><option value="new">仅新编题</option><option value="y25">仅 2025 真题</option></select></label>
+      <label>补足题源 <select id="srcSel"><option value="all">2025 真题</option></select></label>
       <label><input type="checkbox" id="adaptive" checked> 按短板加权抽题</label>
     </div>
     <button class="btn pri" onclick="startExam($('#cfg').value,$('#srcSel').value,$('#adaptive').checked)">生成试卷并开始计时</button>
@@ -585,7 +585,7 @@ VIEWS.practice = () => {
     <div class="chips" id="kpchips">${counts(['judge', 'single', 'multi', 'short']).map(([k, n]) => `<span class="chip" data-k="${k}">${KP[k]} <small>${Math.round(kpAcc(k) * 100)}% · ${n}题</small></span>`).join('')}</div>
     <div class="row" style="margin-top:14px">
       <label>题型 <select id="ptype"><option value="obj">客观题（判断/单选/多选）</option><option value="judge">仅判断</option><option value="single">仅单选</option><option value="multi">仅多选</option><option value="short">仅简答</option></select></label>
-      <label>题源 <select id="psrc"><option value="all">全部（2026 样卷优先抽）</option><option value="y26" ${y26Stats().unlocked ? '' : 'selected'}>仅 2026 样卷</option><option value="y25">2025 真题</option><option value="new">新编</option></select></label>
+      <label>题源 <select id="psrc"><option value="all">全部（2026 样卷优先抽）</option><option value="y26" ${y26Stats().unlocked ? '' : 'selected'}>仅 2026 样卷</option><option value="y25">2025 真题</option></select></label>
       <label>数量 <input type="number" id="pn" value="20" min="1" max="200" style="width:80px"></label>
       <button class="btn pri" onclick="practiceFromForm()">开始练习</button>
       <button class="btn" onclick="startWeak()">让系统按短板出题</button>
@@ -834,8 +834,8 @@ VIEWS.grading = async () => {
   const action = s => !s.hasSubjective || !CONF.llm || s.grading?.status === 'grading' ? ''
     : `<button class="btn sm" onclick="regrade('${s.id}')">${s.feedback ? '重新评卷' : 'AI 评卷'}</button>`;
   $('#view').innerHTML = `<h1>评卷记录</h1>
-  <div class="notice" style="margin-bottom:16px">${CONF.llm ? `交卷后服务端自动调用 <b>${esc(CONF.model)}</b> 评卷，通常 1–3 分钟出结果，评分会同步修正知识点掌握度。` : '服务端未配置评卷模型。'}
-    待评 ${pending.length} 份。想要更深入的点评和按短板追加新题，可在 Cursor 聊天里说 <b>“评卷”</b>。</div>
+  <div class="notice" style="margin-bottom:16px">${CONF.llm ? `交卷后服务端自动调用 <b>${esc(CONF.model)}</b> 评卷，通常 1–3 分钟出结果，评分会同步修正知识点掌握度。` : '服务端未配置评卷模型，暂按关键词预估分显示。'}
+    待评 ${pending.length} 份。</div>
   <div class="card">${list.length ? list.map(s => `<div class="list-item"><span class="tag">${esc((s.created || '').slice(0, 16).replace('T', ' '))}</span><span class="tag">${{ exam: '模拟卷', case: '实操', practice: '练习' }[s.kind] || s.kind}</span>
     <span>${esc(s.title)}</span><span class="spacer"></span><span class="label">预估 ${s.autoScore ?? '-'} / ${s.maxScore ?? '-'}</span>
     ${status(s)}${action(s)}<button class="btn sm" onclick="showSubmission('${s.id}')">查看</button></div>`).join('') : '<div class="label">暂无提交</div>'}</div>`;
@@ -867,7 +867,7 @@ function applyFeedback(list) {
   if (changed) { saveProgress(); toast('已同步 AI 评卷结果到掌握度'); }
 }
 function gradingBox(sid) {
-  return `<div class="card" id="gbox-${sid}">${CONF.llm ? `⏳ 正在提交 AI 评卷（${esc(CONF.model)}）…` : '<div class="notice">服务端未配置评卷模型，可在 Cursor 聊天里说“评卷”。</div>'}</div>`;
+  return `<div class="card" id="gbox-${sid}">${CONF.llm ? `⏳ 正在提交 AI 评卷（${esc(CONF.model)}）…` : '<div class="notice">服务端未配置评卷模型，暂按关键词预估分计。</div>'}</div>`;
 }
 function feedbackHtml(s, f) {
   const fbItem = qid => (f.items || []).find(x => x.qid === qid);
