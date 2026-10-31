@@ -17,3 +17,5 @@ __pycache__/
 .ipynb_checkpoints/
 Thumbs.db
 .DS_Store
+exam-app/server.log
+exam-app/server.pid
