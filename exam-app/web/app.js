@@ -1031,7 +1031,7 @@ VIEWS['memorize-run'] = () => {
   const back = MEM.flipped ? `<div class="verdict ${f === null ? 'ok' : f >= .999 ? 'ok' : f > 0 ? 'part' : 'bad'}">${f === null ? '' : f >= .999 ? '✓ 你答对了　' : f > 0 ? '△ 少选（半分）　' : '✗ 你选错了　'}正确答案：${esc(ansText(q, q.answer))}</div>
       ${explainBox(q)}` : '';
   $('#view').innerHTML = `<div class="row"><h1 style="margin:0">${esc(MEM.title)}</h1><span class="spacer"></span>
-    <span class="label">第 ${MEM.i + 1} / ${MEM.list.length} 题 · 已记 ${MEM.done} · 记住率 ${MEM.done ? Math.round(MEM.right / MEM.done * 100) : 0}% · 连续 3 次记住移出未掌握</span></div>
+    <span class="label">第 ${MEM.i + 1} / ${MEM.list.length} 题 · 本池已毕业 ${MEM.list.filter(mastered).length} / ${MEM.list.length} 题 · 本次已记 ${MEM.done}</span></div>
     <div class="bar" style="margin:10px 0 16px"><i style="width:${(MEM.i + (MEM.flipped ? 1 : 0)) / MEM.list.length * 100}%;background:var(--pri)"></i></div>
     <div class="q mem-card" id="mem-card">
       <div class="qhead"><span class="tag">${TYPE[q.type]}${q.type === 'multi' ? '（多选）' : ''}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}</span>${q.no ? `<span class="label">第 ${q.no} 题</span>` : ''}${gradBadge(q)}<span class="label">${P.q[q.id] ? '历史做过 ' + P.q[q.id].seen + ' 次' : '没做过'}</span></div>
