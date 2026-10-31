@@ -159,6 +159,29 @@ textarea.big{min-height:520px}
 .blur{filter:blur(5px);cursor:pointer;transition:.2s}
 .blur:hover{filter:blur(3px)}
 
+/* 背题模式 */
+.mem-card .stem{font-size:18px}
+.mem-card .opt{font-size:16px;padding:10px 14px}
+.mem-flipbtn{width:100%;padding:14px;font-size:16px;margin-top:12px}
+.mem-grade{display:flex;gap:10px;margin-top:14px}
+.mem-grade .btn{flex:1;padding:13px;font-size:15px;justify-content:center}
+kbd{background:#eef1f6;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:12px}
+.mem-hint{display:none}
+
+/* 手机背题：碎片时间单手操作，大点击区域 + 滑动翻页 */
+@media(max-width:640px){
+  .mem-card .stem{font-size:16.5px}
+  .mem-card .opt{padding:12px;min-height:44px}
+  .mem-flipbtn{min-height:48px;padding:13px}
+  .mem-grade{gap:8px}
+  .mem-grade .btn{min-height:44px;padding:11px 4px;font-size:14px}
+  .chip{padding:8px 14px}
+  .mem-hint{display:inline}
+  /* 记住/没记住固定在底部导航上方，长解析不用-scroll */
+  .mem-grade{position:fixed;left:0;right:0;bottom:calc(var(--navh) + env(safe-area-inset-bottom));z-index:24;background:#fff;padding:10px 12px;box-shadow:0 -3px 12px rgba(0,0,0,.12)}
+  .mem-grade+.row,#memctl{margin-bottom:76px}
+}
+
 /* ====== 阅读排版：题干、选项、解析、参考答案、答题卡、作答框用文楷；按钮、标签、表头等界面控件保持黑体；放在文件末尾以覆盖前面的字号设置 ====== */
 .md,.stem,.stem-pre,.explain,.opt span,.pts,.pt-explain,.pt-quick.block,.rubric td,textarea{font-family:var(--font-read);letter-spacing:.01em;color:#262b36}
 .stem,.stem-pre,.md,.opt span,textarea{font-size:16px;line-height:1.85}

@@ -189,7 +189,7 @@ const ansText = (q, a) => q.type === 'judge' ? (a === 'T' ? '正确' : a === 'F'
 const VIEWS = {};
 function go(view, ...args) {
   if (SESSION && SESSION.running && view !== 'exam-run' && !confirm('考试进行中，离开会保留进度（可回到"模拟考试"继续）。确定离开？')) return;
-  const tab = { 'case-run': 'cases', 'exam-run': 'exam', 'practice-run': 'practice' }[view] || view;
+  const tab = { 'case-run': 'cases', 'exam-run': 'exam', 'practice-run': 'practice', 'memorize-run': 'memorize' }[view] || view;
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('active', a.dataset.view === tab));
   if (!view.startsWith('exam-run') && !view.startsWith('case-run')) stopTimer();
   window.scrollTo(0, 0);
@@ -238,6 +238,16 @@ VIEWS.home = () => {
   const unmastered = ys.total - ys.mastered;
   const subjLeft = ys.shorts.filter(q => !ys.shortOk.includes(q)).concat(ys.cases.filter(q => !ys.caseOk.includes(q)));
   $('#view').innerHTML = `
+  <div class="card" style="border:2px solid var(--pri);background:linear-gradient(180deg,#f0f4ff,#fff)">
+    <div class="row"><h3 style="margin:0">🧠 背题强化（考前强记主模式）</h3><span class="label">看题自测 → 空格翻答案 → 标记记住/没记住；没记住的自动进错题本并加大抽中权重</span></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn pri" onclick="memQuick('unmastered')">先背未掌握样卷题（${unmastered}）</button>
+      <button class="btn" onclick="memQuick('y26obj')">样卷客观题（${ys.objs.length}）</button>
+      <button class="btn" onclick="memQuick('wrong')">错题本重背（${wrongN}）</button>
+      <button class="btn" onclick="startExam('y2026all')">刷样卷打乱卷</button>
+      <button class="btn" onclick="go('memorize')">自定义范围 →</button>
+    </div>
+  </div>
   <div class="card y26card">
     <div class="row"><h3 style="margin:0">🎯 2026 样卷 · 原题熟练</h3>
       ${ys.unlocked ? `<span class="tag ok">第二阶段 · 变式题（${esc(P.settings.stage2At)} 达标）</span>` : '<span class="tag y26">第一阶段 · 只练原题</span>'}
@@ -880,6 +890,193 @@ async function showSubmission(id) {
     ${s.wrong && s.wrong.length ? `<h3>客观题错题（${s.wrong.length}）</h3>${s.wrong.map(w => { const q = BYID[w.qid]; return q ? `<div class="q">${objBody(q, w.yours || '', true)}</div>` : ''; }).join('')}` : ''}`);
   if (!f && (s.subjective || []).length) watchGrading(id);
 }
+
+/* ====== 背题模式：看题自测 → 翻答案 → 记住/没记住，直接计入掌握度与错题本 ====== */
+let MEM = null;
+function memSave() {
+  if (!MEM) { localStorage.removeItem('mem'); return; }
+  localStorage.setItem('mem', JSON.stringify({ ids: MEM.list.map(q => q.id), i: MEM.i, title: MEM.title, done: MEM.done, right: MEM.right }));
+}
+function memStart(list, title) {
+  if (!list.length) return toast('该范围内没有题目');
+  MEM = { list, i: 0, flipped: false, sel: '', graded: false, title, done: 0, right: 0 };
+  memSave();
+  go('memorize-run');
+}
+function memPool(scopeKey, types) {
+  let pool = BANK.filter(q => types.includes(q.type));
+  if (scopeKey === 'y26') pool = pool.filter(q => q.src === Y26);
+  if (scopeKey === 'y25') pool = pool.filter(q => q.src === Y25);
+  if (scopeKey === 'wrong') pool = pool.filter(q => P.wrong[q.id]);
+  if (scopeKey === 'unmastered') pool = pool.filter(q => q.src === Y26 && !mastered(q));
+  return pool;
+}
+function memQuick(scopeKey) {
+  const types = scopeKey === 'y26obj' ? ['judge', 'single', 'multi'] : ['judge', 'single', 'multi', 'short'];
+  const key = scopeKey === 'y26obj' ? 'y26' : scopeKey;
+  const names = { y26: '2026 样卷', y26obj: '2026 样卷客观题', y25: '2025 真题', wrong: '错题本重背', unmastered: '未掌握样卷题' };
+  memStart(shuffle(memPool(key, types)), `背题 · ${names[scopeKey]}`);
+}
+VIEWS.memorize = () => {
+  const saved = JSON.parse(localStorage.getItem('mem') || 'null');
+  const savedList = saved ? saved.ids.map(id => BYID[id]).filter(Boolean) : [];
+  const cnt = (scopeKey, types) => memPool(scopeKey, types).length;
+  $('#view').innerHTML = `<h1>🧠 背题模式</h1>
+  <div class="card" style="border:2px solid var(--pri);background:linear-gradient(180deg,#f0f4ff,#fff)">
+    <div class="row"><h3 style="margin:0">一分钟上手</h3></div>
+    <ol style="margin:8px 0 0;padding-left:22px;line-height:2">
+      <li><b>看题自测</b>：心里想出答案，可点选项对一下（可选）</li>
+      <li><b>空格 / 点按钮翻答案</b>：对答案、看解析和答题思路</li>
+      <li><b>标记“记住了 / 没记住”</b>：没记住的自动进错题本、加大抽中权重</li>
+      <li>键盘：<kbd>空格</kbd> 翻页 · <kbd>←</kbd><kbd>→</kbd> 上一题/下一题 · <kbd>A</kbd>-<kbd>D</kbd>/<kbd>T</kbd><kbd>F</kbd> 选项</li>
+    </ol>
+  </div>
+  ${savedList.length ? `<div class="notice" style="margin-bottom:16px">有未背完的卡片：${esc(saved.title)}（第 ${saved.i + 1} / ${savedList.length} 题）　<button class="btn sm pri" onclick="memResume()">继续背</button> <button class="btn sm" onclick="localStorage.removeItem('mem');VIEWS.memorize()">放弃</button></div>` : ''}
+  <div class="card">
+    <h3 style="margin-top:0">快速入口（按考试优先级）</h3>
+    <div class="row">
+      <button class="btn pri" onclick="memQuick('unmastered')">未掌握样卷题（${cnt('unmastered', ['judge', 'single', 'multi'])}）</button>
+      <button class="btn" onclick="memQuick('y26obj')">2026 样卷客观题（${cnt('y26', ['judge', 'single', 'multi'])}）</button>
+      <button class="btn" onclick="memQuick('y26')">2026 样卷全部（含简答 ${cnt('y26', ['short'])}）</button>
+      <button class="btn" onclick="memQuick('wrong')">错题本（${Object.keys(P.wrong).filter(id => BYID[id] && isObj(BYID[id])).length}）</button>
+      <button class="btn" onclick="memQuick('y25')">2025 真题（${cnt('y25', ['judge', 'single', 'multi', 'short'])}）</button>
+      <button class="btn" onclick="memQuick('all')">全部题库</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">自定义范围</h3>
+    <div class="label" style="margin-bottom:6px">题源</div>
+    <div class="chips" id="memsrc">
+      <span class="chip on" data-v="all">全部</span><span class="chip" data-v="y26">2026 样卷</span><span class="chip" data-v="y25">2025 真题</span>
+    </div>
+    <div class="label" style="margin:12px 0 6px">题型</div>
+    <div class="chips" id="memtype">
+      ${['judge', 'single', 'multi', 'short'].map(t => `<span class="chip ${t !== 'short' ? 'on' : ''}" data-v="${t}">${TYPE[t]}</span>`).join('')}
+    </div>
+    <div class="label" style="margin:12px 0 6px">知识点（不选 = 全部）</div>
+    <div class="chips" id="memkp">${Object.keys(KP).map(k => `<span class="chip" data-v="${k}">${KP[k]}</span>`).join('')}</div>
+    <div class="row" style="margin-top:14px">
+      <label><input type="checkbox" id="memshuffle" checked> 打乱顺序（防止记位置）</label>
+      <button class="btn pri" onclick="memCustom()">开始背题</button>
+    </div>
+  </div>`;
+  for (const id of ['memsrc', 'memtype', 'memkp'])
+    $('#' + id).onclick = e => { const c = e.target.closest('.chip'); if (c) c.classList.toggle('on'); };
+};
+function memCustom() {
+  const src = $('#memsrc .chip.on')?.dataset.v || 'all';
+  const types = [...document.querySelectorAll('#memtype .chip.on')].map(c => c.dataset.v);
+  const kps = [...document.querySelectorAll('#memkp .chip.on')].map(c => c.dataset.v);
+  if (!types.length) return toast('至少选一种题型');
+  let pool = memPool(src === 'all' ? 'all' : src, types);
+  if (kps.length) pool = pool.filter(q => kps.includes(q.kp));
+  if ($('#memshuffle').checked) pool = shuffle(pool);
+  memStart(pool, `背题 · 自定义（${pool.length} 题）`);
+}
+VIEWS['memorize-run'] = () => {
+  const q = MEM.list[MEM.i];
+  if (!q) return VIEWS.memorize();
+  const a = MEM.sel;
+  let body;
+  if (q.type === 'short') {
+    body = MEM.flipped
+      ? `${shortFeedback(q, null)}${q.points ? pointsHtml(q) : ''}`
+      : `<div class="label" style="margin:10px 0">简答题：先回忆要点，再翻答案对照评分点。${q.score ? `（${q.score} 分）` : ''}</div>`;
+  } else {
+    const opts = q.type === 'judge' ? judgeOpts(q).map(([v, t]) => `<div class="opt ${a === v ? 'sel' : ''}" data-mv="${v}"><span>${t}</span></div>`).join('')
+      : q.options.map((o, k) => `<div class="opt ${a.includes(LETTERS[k]) ? 'sel' : ''}" data-mv="${LETTERS[k]}"><b>${LETTERS[k]}.</b><span>${esc(o)}</span></div>`).join('');
+    body = `<div id="memopts">${opts}</div>`;
+  }
+  const tried = MEM.flipped && q.type !== 'short' && a;
+  const f = tried ? gradeObjective(q, a) : null;
+  const back = MEM.flipped ? `<div class="verdict ${f === null ? 'ok' : f >= .999 ? 'ok' : f > 0 ? 'part' : 'bad'}">${f === null ? '' : f >= .999 ? '✓ 你答对了　' : f > 0 ? '△ 少选（半分）　' : '✗ 你选错了　'}正确答案：${esc(ansText(q, q.answer))}</div>
+      ${explainBox(q)}` : '';
+  $('#view').innerHTML = `<div class="row"><h1 style="margin:0">${esc(MEM.title)}</h1><span class="spacer"></span>
+    <span class="label">第 ${MEM.i + 1} / ${MEM.list.length} 题 · 已记 ${MEM.done} · 记住率 ${MEM.done ? Math.round(MEM.right / MEM.done * 100) : 0}%</span></div>
+    <div class="bar" style="margin:10px 0 16px"><i style="width:${(MEM.i + (MEM.flipped ? 1 : 0)) / MEM.list.length * 100}%;background:var(--pri)"></i></div>
+    <div class="q mem-card" id="mem-card">
+      <div class="qhead"><span class="tag">${TYPE[q.type]}${q.type === 'multi' ? '（多选）' : ''}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}</span>${q.no ? `<span class="label">第 ${q.no} 题</span>` : ''}<span class="label">${P.q[q.id] ? '历史做过 ' + P.q[q.id].seen + ' 次' : '没做过'}</span></div>
+      <div class="stem">${esc(q.stem)}</div>
+      ${body}
+      ${back}
+    </div>
+    <div id="memctl">${MEM.flipped
+      ? `<div class="mem-grade">${q.type === 'short'
+          ? `<button class="btn ok" onclick="memGrade(1)">✓ 记住了</button><button class="btn" style="color:var(--bad);border-color:var(--bad)" onclick="memGrade(0)">✗ 没记住</button>`
+          : `<button class="btn ok" onclick="memGrade(${f >= .999 ? 1 : 0})">✓ 记住了${f !== null && f < .999 ? '（仍计入 1 次）' : ''}</button><button class="btn" style="color:var(--bad);border-color:var(--bad)" onclick="memGrade(0)">✗ 没记住</button>`}
+        <button class="btn" onclick="memNext(true)">跳过 · 下一题 →</button></div>`
+      : `<button class="btn pri mem-flipbtn" onclick="memFlip()">显示答案（空格）</button>`}</div>
+    <div class="row" style="margin-top:14px">${MEM.i > 0 ? '<button class="btn" onclick="memPrev()">← 上一题</button>' : ''}<span class="label mem-hint">📱 点题面翻答案 · 左右滑动翻页</span><span class="spacer"></span>
+      <button class="btn" onclick="memQuit()">结束背题</button></div>`;
+  const box = $('#memopts');
+  if (box) box.onclick = e => {
+    if (MEM.flipped) return;
+    const o = e.target.closest('.opt'); if (!o) return;
+    const v = o.dataset.mv;
+    MEM.sel = q.type === 'multi' ? (MEM.sel.includes(v) ? MEM.sel.replace(v, '') : [...MEM.sel + v].sort().join('')) : v;
+    box.querySelectorAll('.opt').forEach(x => x.classList.toggle('sel', MEM.sel.includes(x.dataset.mv)));
+  };
+  // 手机手势：点题面翻答案/下一题，左右滑动翻页
+  const card = $('#mem-card');
+  let tx0 = 0, ty0 = 0;
+  card.addEventListener('touchstart', e => { tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; }, { passive: true });
+  card.addEventListener('touchend', e => {
+    const t = e.changedTouches[0], dx = t.clientX - tx0, dy = t.clientY - ty0;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { dx < 0 ? (MEM.flipped ? memNext() : memFlip()) : memPrev(); return; }
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && !e.target.closest('.opt')) { MEM.flipped ? memNext() : memFlip(); }
+  });
+};
+function memFlip() {
+  MEM.flipped = true;
+  VIEWS['memorize-run']();
+}
+function memResume() {
+  const saved = JSON.parse(localStorage.getItem('mem') || 'null');
+  if (!saved) return;
+  const list = saved.ids.map(id => BYID[id]).filter(Boolean);
+  if (!list.length) { localStorage.removeItem('mem'); return VIEWS.memorize(); }
+  MEM = { list, i: Math.min(saved.i, list.length - 1), flipped: false, sel: '', graded: true, title: saved.title, done: saved.done || 0, right: saved.right || 0 };
+  go('memorize-run');
+}
+function memGrade(v) {
+  const q = MEM.list[MEM.i];
+  if (!MEM.graded) {
+    record(q, v);
+    MEM.done++; MEM.right += v;
+    MEM.graded = true;
+  }
+  memSave();
+  memNext();
+}
+function memNext(skip) {
+  if (MEM.i >= MEM.list.length - 1) return memFinish();
+  MEM.i++; MEM.flipped = false; MEM.sel = ''; MEM.graded = false;
+  memSave();
+  VIEWS['memorize-run']();
+}
+function memPrev() { if (MEM.i > 0) { MEM.i--; MEM.flipped = false; MEM.sel = ''; MEM.graded = true; memSave(); VIEWS['memorize-run'](); } }
+function memFinish() {
+  const n = MEM.done, acc = n ? Math.round(MEM.right / n * 100) : 0;
+  localStorage.removeItem('mem');
+  $('#view').innerHTML = `<h1>背题完成 🎉</h1><div class="card">
+    <div class="scorebig">${acc}<small style="font-size:20px;color:var(--muted)">% 记住率</small></div>
+    <div class="label">本次标记 ${n} 题 · 记住 ${MEM.right} · 没记住 ${n - MEM.right}（已进错题本并加大权重）</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn pri" onclick="memQuick('wrong')">去背错题本</button>
+      <button class="btn" onclick="memQuick('unmastered')">再背未掌握样卷题</button>
+      <button class="btn" onclick="go('home')">回看板</button></div></div>`;
+}
+function memQuit() {
+  if (MEM.i < MEM.list.length - 1 && MEM.done > 0) memSave(); else localStorage.removeItem('mem');
+  MEM = null;
+  go('memorize');
+}
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('mem-card') || !MEM || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === ' ') { e.preventDefault(); MEM.flipped ? memNext() : memFlip(); }
+  else if (e.key === 'ArrowRight') memNext();
+  else if (e.key === 'ArrowLeft') memPrev();
+});
 
 /* ====== Mermaid 流程图：任何位置渲染出的 ```mermaid 代码块都自动转成图形 ====== */
 let mmSeq = 0, mmPending = false;
