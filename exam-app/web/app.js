@@ -95,7 +95,7 @@ function docSection(text, anchor) {
 /* ====== 进度与自适应 ====== */
 function initProgress(p) {
   p = p && typeof p === 'object' ? p : {};
-  p.settings = Object.assign({ examDate: '2026-11-11', planStart: today() }, p.settings || {});
+  p.settings = Object.assign({ examDate: '2026-11-07', planStart: today() }, p.settings || {});
   for (const k of ['q', 'kp', 'wrong', 'daily']) p[k] = p[k] || {};
   p.history = p.history || [];
   p.appliedFeedback = p.appliedFeedback || [];
