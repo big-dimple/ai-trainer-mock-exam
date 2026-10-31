@@ -1060,9 +1060,14 @@ function memGrade(v) {
   const q = MEM.list[MEM.i];
   if (!MEM.graded) {
     record(q, v);
+    if (q.points) {
+      const r = P.recite[q.id] = P.recite[q.id] || {};
+      q.points.forEach((_, j) => r[j] = v);
+    }
     MEM.done++; MEM.right += v;
     MEM.graded = true;
   }
+  saveProgress();
   memSave();
   memNext();
 }
