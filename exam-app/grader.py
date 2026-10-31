@@ -80,12 +80,17 @@ class LLM:
         return bool(self.base and self.model)
 
     def chat(self, system, user):
-        body = {"model": self.model, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-                "max_tokens": self.max_tokens, "temperature": self.temperature}
-        req = urllib.request.Request(self.base + "/chat/completions", data=json.dumps(body).encode("utf-8"),
-                                     headers={"Content-Type": "application/json", "Authorization": "Bearer " + self.key})
+        messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        # 新模型（OpenAI gpt-5+/o 系列）用 max_completion_tokens 且可能不支持 temperature；
+        # 旧接口用 max_tokens。遇到 "Unsupported parameter" 就自动剔除对应参数重试。
+        params = {"max_completion_tokens" if "openai.com" in self.base else "max_tokens": self.max_tokens,
+                  "temperature": self.temperature}
+        req_headers = {"Content-Type": "application/json", "Authorization": "Bearer " + self.key}
         last = None
-        for attempt in range(3):
+        for attempt in range(4):
+            body = {"model": self.model, "messages": messages, **params}
+            req = urllib.request.Request(self.base + "/chat/completions", data=json.dumps(body).encode("utf-8"),
+                                         headers=req_headers)
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as r:
                     data = json.loads(r.read().decode("utf-8"))
@@ -93,6 +98,10 @@ class LLM:
                 return re.sub(r"<think>.*?</think>", "", content, flags=re.S).strip()
             except urllib.error.HTTPError as e:
                 last = f"HTTP {e.code}: {e.read().decode('utf-8', 'ignore')[:300]}"
+                m = re.search(r"Unsupported (?:parameter|value): '(\w+)'", last)
+                if e.code == 400 and m and m.group(1) in params:
+                    del params[m.group(1)]
+                    continue
                 if e.code < 500 and e.code != 429:
                     break
             except Exception as e:
