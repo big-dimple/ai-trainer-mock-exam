@@ -27,25 +27,22 @@ python grader.py --ping                         # 测试连通
 ```
 也可以复制 `config.example.json` 为 `config.json` 手动填写，或用环境变量 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 覆盖。`config.json` 含密钥，已被 `.gitignore` 排除。
 
-## 部署到公网服务器
+## 部署到公网服务器（ai.hp666.cc 已按此部署）
 1. 服务器安装 Python 3.8+，拉取代码（release 分支为部署分支）：
    ```bash
-   git clone -b release git@github.com:big-dimple/ai-trainer-mock-exam.git /opt/ai-trainer-mock-exam
+   git clone -b release git@github.com:big-dimple/ai-trainer-mock-exam.git /var/www/ai-trainer
    ```
 2. 配置密钥（二选一，推荐环境变量，密钥不落 git）：
    - 复制 `deploy/env.example` 为 `/etc/ai-trainer-exam.env` 并 `chmod 600`，填好 `EXAM_PASSWORD` 与 `LLM_*`；
    - 或在 `exam-app/` 下创建 `config.json`（参考 `config.example.json`）：`host` 设 `0.0.0.0`，**必须设置 `auth.password`**；`llm.base_url` 必须是**服务器能访问到的地址**（内网网关需反代/穿透，或换公网可达接口）。
 3. 安装 systemd 服务并启动：
    ```bash
-   sudo cp deploy/ai-trainer-exam.service /etc/systemd/system/
+   sudo cp deploy/ai-trainer-exam.service /etc/systemd/system/   # 按实际路径改 WorkingDirectory
    sudo systemctl daemon-reload && sudo systemctl enable --now ai-trainer-exam
    ```
-4. 日常更新：本地把改动推到 `release` 分支后，在服务器执行：
-   ```bash
-   bash /opt/ai-trainer-mock-exam/exam-app/deploy/deploy.sh
-   ```
-5. 建议用 Nginx/Caddy 反代到 `ai.hp666.cc` 并开启 HTTPS（Basic Auth 密码在 HTTP 下明文传输）。
-6. 数据都在 `exam-app/data/progress.json`（启动时自动备份到 `data/backups/`，保留最近 10 份）、`submissions/`、`feedback/`，迁移时一起复制。系统按单用户设计，多人共用会共享同一份进度。
+4. nginx 反代参考（已部署实例）：`proxy_pass http://127.0.0.1:8848`，`proxy_read_timeout 360s`（AI 评卷长请求）；HTTPS 用 `certbot --nginx -d <域名>`。
+5. 日常更新：本地把改动推到 `release` 分支后，服务器 cron（`deploy/deploy.sh` 同逻辑）每分钟自动拉取、重启、健康检查；也可手动执行 `bash deploy/deploy.sh`。
+6. 数据都在 `exam-app/data/progress.json`（启动时自动备份到 `data/backups/`，保留最近 10 份）、`submissions/`、`feedback/`，均为 gitignore 文件，`git reset --hard` 更新不会动它们。系统按单用户设计，多人共用会共享同一份进度。
 
 ## 数据
 - `data/bank/*.json`：题库（`y2025_*` 真题；`new_*` 新编；`ai_round*` AI 按短板追加）
