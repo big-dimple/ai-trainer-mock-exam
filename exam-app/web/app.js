@@ -498,7 +498,7 @@ async function renderExamResult() {
 function plainHtml(q) {
   if (!q.plain) return '';
   const lines = q.plain.feynman.split('\n').filter(l => l.trim());
-  return `<div class="plain-answer"><b>🗣️ 人话版（背这个就够，沾边就给分）</b>
+  return `<div class="plain-answer"><b>🗣️ 人话版得分答案（每行一个得分点，考场按序号分行写）</b>
     ${lines.map(l => `<p>${esc(l)}</p>`).join('')}
     ${q.plain.mnemonic ? `<div class="plain-mnemonic">🧷 口诀：${esc(q.plain.mnemonic)}</div>` : ''}</div>`;
 }
