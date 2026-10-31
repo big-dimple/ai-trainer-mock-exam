@@ -237,6 +237,10 @@ code,pre,kbd,.md pre,.md code{font-family:var(--font-mono);letter-spacing:0}
   .list-item{flex-wrap:wrap;row-gap:6px}
   .kprow{grid-template-columns:88px 1fr 76px;gap:8px;font-size:13px}
   select,input,textarea{font-size:16px}
+  /* 表单行：手机上标签独占一行、下拉框拉满，防止长选项把页面撑出横向滚动 */
+  .row{row-gap:10px;align-items:stretch}
+  .row label{display:block;width:100%;box-sizing:border-box}
+  .row select,.row input[type=number],.row input[type=date]{width:100%;max-width:100%;box-sizing:border-box}
   textarea.big{min-height:360px}
   .stem-pre{max-height:none;padding:12px}
   .tabs a{padding:6px 12px}
