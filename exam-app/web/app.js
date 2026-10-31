@@ -55,8 +55,14 @@ const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { c
 
 /* ====== API ====== */
 // 每个浏览器自动分配独立身份：进度/答卷按用户隔离，多人共用互不干扰
-const UID = localStorage.getItem('examUid') || (() => {
-  const u = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+// 身份三级持久化：localStorage 优先，Cookie 兜底（防止某些浏览器刷新清存储导致进度归零）
+const UID = (() => {
+  let u = localStorage.getItem('examUid');
+  if (!u) u = (document.cookie.match(/(?:^|;\s*)exam_uid=([a-zA-Z0-9]+)/) || [])[1] || null;
+  if (!u) {
+    u = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    document.cookie = `exam_uid=${u}; max-age=31536000; path=/; SameSite=Lax`;
+  }
   localStorage.setItem('examUid', u);
   return u;
 })();
@@ -101,6 +107,7 @@ function initProgress(p) {
   p.appliedFeedback = p.appliedFeedback || [];
   p.fbApplied = p.fbApplied || {};
   p.recite = p.recite || {};
+  p.memSession = p.memSession || null;
   return p;
 }
 function kpAcc(kp) { const s = P.kp[kp]; return s ? (s.score + 1) / (s.seen + 2) : 0.5; }
@@ -909,11 +916,14 @@ async function showSubmission(id) {
   if (!f && (s.subjective || []).length) watchGrading(id);
 }
 
-/* ====== 背题模式：看题自测 → 翻答案 → 记住/没记住，直接计入掌握度与错题本 ====== */
+/* ====== 背题模式：看题自测 → 翻答案 → 记住/没记住，直接计入掌握度与错题本 ======
+规则：记住 1 次累积 1 次，连续 3 次记住才移出“未掌握”；中途刷新/离开自动从原位置继续。 */
 let MEM = null;
 function memSave() {
-  if (!MEM) { localStorage.removeItem('mem'); return; }
-  localStorage.setItem('mem', JSON.stringify({ ids: MEM.list.map(q => q.id), i: MEM.i, title: MEM.title, done: MEM.done, right: MEM.right }));
+  if (!MEM) { localStorage.removeItem('mem'); delete P.memSession; saveProgress(); return; }
+  P.memSession = { ids: MEM.list.map(q => q.id), i: MEM.i, title: MEM.title, done: MEM.done, right: MEM.right };
+  localStorage.setItem('mem', JSON.stringify(P.memSession));
+  saveProgress();
 }
 function memStart(list, title) {
   if (!list.length) return toast('该范围内没有题目');
@@ -933,10 +943,14 @@ function memQuick(scopeKey) {
   const types = scopeKey === 'y26obj' ? ['judge', 'single', 'multi'] : ['judge', 'single', 'multi', 'short'];
   const key = scopeKey === 'y26obj' ? 'y26' : scopeKey;
   const names = { y26: '2026 样卷', y26obj: '2026 样卷客观题', y25: '2025 真题', wrong: '错题本重背', unmastered: '未掌握样卷题' };
-  memStart(shuffle(memPool(key, types)), `背题 · ${names[scopeKey]}`);
+  const title = `背题 · ${names[scopeKey]}`;
+  // 同范围的背题没背完时直接续背，不重新开始
+  const saved = P.memSession || JSON.parse(localStorage.getItem('mem') || 'null');
+  if (saved && saved.title === title) return memResume();
+  memStart(shuffle(memPool(key, types)), title);
 }
 VIEWS.memorize = () => {
-  const saved = JSON.parse(localStorage.getItem('mem') || 'null');
+  const saved = P.memSession || JSON.parse(localStorage.getItem('mem') || 'null');
   const savedList = saved ? saved.ids.map(id => BYID[id]).filter(Boolean) : [];
   const cnt = (scopeKey, types) => memPool(scopeKey, types).length;
   $('#view').innerHTML = `<h1>🧠 背题模式</h1>
@@ -945,11 +959,12 @@ VIEWS.memorize = () => {
     <ol style="margin:8px 0 0;padding-left:22px;line-height:2">
       <li><b>看题自测</b>：心里想出答案，可点选项对一下（可选）</li>
       <li><b>空格 / 点按钮翻答案</b>：对答案、看解析和答题思路</li>
-      <li><b>标记“记住了 / 没记住”</b>：没记住的自动进错题本、加大抽中权重</li>
+      <li><b>标记“记住了 / 没记住”</b>：记住 1 次累积 1 次，<b>连续 3 次记住</b>才移出“未掌握”；没记住的进错题本</li>
+      <li><b>进度自动保存</b>：中途刷新、关页面都从原位置继续，不会从头再来</li>
       <li>键盘：<kbd>空格</kbd> 翻页 · <kbd>←</kbd><kbd>→</kbd> 上一题/下一题 · <kbd>A</kbd>-<kbd>D</kbd>/<kbd>T</kbd><kbd>F</kbd> 选项</li>
     </ol>
   </div>
-  ${savedList.length ? `<div class="notice" style="margin-bottom:16px">有未背完的卡片：${esc(saved.title)}（第 ${saved.i + 1} / ${savedList.length} 题）　<button class="btn sm pri" onclick="memResume()">继续背</button> <button class="btn sm" onclick="localStorage.removeItem('mem');VIEWS.memorize()">放弃</button></div>` : ''}
+  ${savedList.length ? `<div class="notice" style="margin-bottom:16px">上次背到一半：${esc(saved.title)}（第 ${saved.i + 1} / ${savedList.length} 题，已记 ${saved.done}）　<button class="btn sm pri" onclick="memResume()">继续背</button> <button class="btn sm" onclick="memAbandon()">放弃重背</button></div>` : ''}
   <div class="card">
     <h3 style="margin-top:0">快速入口（按考试优先级）</h3>
     <div class="row">
@@ -1010,7 +1025,7 @@ VIEWS['memorize-run'] = () => {
   const back = MEM.flipped ? `<div class="verdict ${f === null ? 'ok' : f >= .999 ? 'ok' : f > 0 ? 'part' : 'bad'}">${f === null ? '' : f >= .999 ? '✓ 你答对了　' : f > 0 ? '△ 少选（半分）　' : '✗ 你选错了　'}正确答案：${esc(ansText(q, q.answer))}</div>
       ${explainBox(q)}` : '';
   $('#view').innerHTML = `<div class="row"><h1 style="margin:0">${esc(MEM.title)}</h1><span class="spacer"></span>
-    <span class="label">第 ${MEM.i + 1} / ${MEM.list.length} 题 · 已记 ${MEM.done} · 记住率 ${MEM.done ? Math.round(MEM.right / MEM.done * 100) : 0}%</span></div>
+    <span class="label">第 ${MEM.i + 1} / ${MEM.list.length} 题 · 已记 ${MEM.done} · 记住率 ${MEM.done ? Math.round(MEM.right / MEM.done * 100) : 0}% · 连续 3 次记住移出未掌握</span></div>
     <div class="bar" style="margin:10px 0 16px"><i style="width:${(MEM.i + (MEM.flipped ? 1 : 0)) / MEM.list.length * 100}%;background:var(--pri)"></i></div>
     <div class="q mem-card" id="mem-card">
       <div class="qhead"><span class="tag">${TYPE[q.type]}${q.type === 'multi' ? '（多选）' : ''}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}</span>${q.no ? `<span class="label">第 ${q.no} 题</span>` : ''}<span class="label">${P.q[q.id] ? '历史做过 ' + P.q[q.id].seen + ' 次' : '没做过'}</span></div>
@@ -1049,12 +1064,18 @@ function memFlip() {
   VIEWS['memorize-run']();
 }
 function memResume() {
-  const saved = JSON.parse(localStorage.getItem('mem') || 'null');
+  const saved = P.memSession || JSON.parse(localStorage.getItem('mem') || 'null');
   if (!saved) return;
   const list = saved.ids.map(id => BYID[id]).filter(Boolean);
-  if (!list.length) { localStorage.removeItem('mem'); return VIEWS.memorize(); }
+  if (!list.length) { memAbandon(); return; }
   MEM = { list, i: Math.min(saved.i, list.length - 1), flipped: false, sel: '', graded: true, title: saved.title, done: saved.done || 0, right: saved.right || 0 };
   go('memorize-run');
+}
+function memAbandon() {
+  localStorage.removeItem('mem');
+  delete P.memSession;
+  saveProgress();
+  if (MEM) { MEM = null; go('memorize'); } else VIEWS.memorize();
 }
 function memGrade(v) {
   const q = MEM.list[MEM.i];
@@ -1081,6 +1102,8 @@ function memPrev() { if (MEM.i > 0) { MEM.i--; MEM.flipped = false; MEM.sel = ''
 function memFinish() {
   const n = MEM.done, acc = n ? Math.round(MEM.right / n * 100) : 0;
   localStorage.removeItem('mem');
+  delete P.memSession;
+  saveProgress();
   $('#view').innerHTML = `<h1>背题完成 🎉</h1><div class="card">
     <div class="scorebig">${acc}<small style="font-size:20px;color:var(--muted)">% 记住率</small></div>
     <div class="label">本次标记 ${n} 题 · 记住 ${MEM.right} · 没记住 ${n - MEM.right}（已进错题本并加大权重）</div>
@@ -1090,7 +1113,7 @@ function memFinish() {
       <button class="btn" onclick="go('home')">回看板</button></div></div>`;
 }
 function memQuit() {
-  if (MEM.i < MEM.list.length - 1 && MEM.done > 0) memSave(); else localStorage.removeItem('mem');
+  if (MEM.i < MEM.list.length - 1 && MEM.done > 0) memSave(); else { localStorage.removeItem('mem'); delete P.memSession; saveProgress(); }
   MEM = null;
   go('memorize');
 }
