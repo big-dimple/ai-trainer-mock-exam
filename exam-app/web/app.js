@@ -538,12 +538,11 @@ function pointsHtml(q) {
   const ok = q.points.filter((_, i) => rec[i] === 1).length;
   const big = q.type === 'case';
   const recBtns = i => `<span class="pt-rec"><a onclick="markRecite('${q.id}',${i},1,this)">✓ 记住了</a><a onclick="markRecite('${q.id}',${i},0,this)">✗ 没记住</a></span>`;
-  const more = `<a class="pt-more" onclick="this.closest('li').classList.toggle('open')">为什么？</a>`;
   const explain = p => `<div class="pt-explain md">${md(`**怎么做**：${p.how}\n\n**为什么**：${p.why}${p.tip ? `\n\n**小提醒**：${p.tip}` : ''}`)}</div>`;
   const item = (p, i) => big
-    ? `<div class="pt-line"><b class="pt-t">${esc(p.t)}</b><span class="tag">占 ${p.score}%</span><span class="tag">建议 ${p.min} 分钟</span><span class="spacer"></span>${recBtns(i)}${more}</div>
+    ? `<div class="pt-line"><b class="pt-t">${esc(p.t)}</b><span class="tag">占 ${p.score}%</span><span class="tag">建议 ${p.min} 分钟</span><span class="spacer"></span>${recBtns(i)}</div>
        <div class="pt-quick block md" onclick="this.classList.add('shown')">${md(p.quick)}</div>${explain(p)}`
-    : `<div class="pt-line"><b class="pt-t">${esc(p.t)}：</b><span class="pt-quick" onclick="this.classList.add('shown')">${esc(p.quick)}</span>${recBtns(i)}${more}</div>${explain(p)}`;
+    : `<div class="pt-line"><b class="pt-t">${esc(p.t)}：</b><span class="pt-quick" onclick="this.classList.add('shown')">${esc(p.quick)}</span>${recBtns(i)}</div>${explain(p)}`;
   return `<div class="pts ${big ? 'big' : ''} ${reciteOn() ? 'recite' : ''}" data-qid="${q.id}">
     <div class="pts-head"><b>✍️ ${big ? '答题卡 · 考场速写版' : '考场速写版'}</b><span class="label">${big ? '按小问拆开，考场照着写' : '每点一行，考场直接誊抄'}</span><span class="spacer"></span>
       <span class="label pts-count">背熟 ${ok} / ${q.points.length}</span>
@@ -999,7 +998,7 @@ VIEWS['memorize-run'] = () => {
   let body;
   if (q.type === 'short') {
     body = MEM.flipped
-      ? `${shortFeedback(q, null)}${q.points ? pointsHtml(q) : ''}`
+      ? shortFeedback(q, null)
       : `<div class="label" style="margin:10px 0">简答题：先回忆要点，再翻答案对照评分点。${q.score ? `（${q.score} 分）` : ''}</div>`;
   } else {
     const opts = q.type === 'judge' ? judgeOpts(q).map(([v, t]) => `<div class="opt ${a === v ? 'sel' : ''}" data-mv="${v}"><span>${t}</span></div>`).join('')
@@ -1042,7 +1041,7 @@ VIEWS['memorize-run'] = () => {
   card.addEventListener('touchend', e => {
     const t = e.changedTouches[0], dx = t.clientX - tx0, dy = t.clientY - ty0;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { dx < 0 ? (MEM.flipped ? memNext() : memFlip()) : memPrev(); return; }
-    if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && !e.target.closest('.opt')) { MEM.flipped ? memNext() : memFlip(); }
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && !e.target.closest('.opt,a,button,select,summary,.pt-quick')) { MEM.flipped ? memNext() : memFlip(); }
   });
 };
 function memFlip() {
