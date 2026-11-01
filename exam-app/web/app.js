@@ -108,6 +108,8 @@ function initProgress(p) {
   p.fbApplied = p.fbApplied || {};
   p.recite = p.recite || {};
   p.memSession = p.memSession || null;
+  p.pracSession = p.pracSession || null;
+  p.caseDraft = p.caseDraft || null;
   return p;
 }
 function kpAcc(kp) { const s = P.kp[kp]; return s ? (s.score + 1) / (s.seen + 2) : 0.5; }
@@ -591,7 +593,9 @@ async function loadRefs() {
 let PR = null;
 VIEWS.practice = () => {
   const counts = t => Object.keys(KP).map(k => [k, BANK.filter(q => q.kp === k && t.includes(q.type)).length]);
+  const ps = P.pracSession;
   $('#view').innerHTML = `<h1>专项练习</h1>
+  ${ps && (ps.ids || []).length ? `<div class="notice" style="margin-bottom:16px">上次练习没做完：${esc(ps.title)}（第 ${(ps.i || 0) + 1} / ${ps.ids.length} 题）　<button class="btn sm pri" onclick="pracResume()">继续练</button> <button class="btn sm" onclick="pracAbandon()">放弃重练</button></div>` : ''}
   <div class="card">
     <h3 style="margin-top:0">选择知识点（可多选）</h3>
     <div class="chips" id="kpchips">${counts(['judge', 'single', 'multi', 'short']).map(([k, n]) => `<span class="chip" data-k="${k}">${KP[k]} <small>${Math.round(kpAcc(k) * 100)}% · ${n}题</small></span>`).join('')}</div>
@@ -621,9 +625,27 @@ function startPractice(kps, t = 'obj', src = 'all', n = 20) {
 }
 function startPracticeList(list, title) {
   PR = { title, list, i: 0, ans: {}, done: {}, got: 0, subj: [] };
+  pracSave();
   go('practice-run');
 }
+function pracSave() {
+  if (!PR) return;
+  P.pracSession = { title: PR.title, ids: PR.list.map(q => q.id), i: PR.i, ans: PR.ans, done: PR.done, got: PR.got, subj: PR.subj, saved: !!PR.saved, sid: PR.sid || null };
+  saveProgress();
+}
+function pracResume() {
+  const s = P.pracSession;
+  if (!s) return;
+  const list = (s.ids || []).map(id => BYID[id]).filter(Boolean);
+  if (!list.length) { pracAbandon(); return; }
+  PR = { title: s.title, list, i: Math.min(s.i || 0, list.length - 1), ans: s.ans || {}, done: s.done || {}, got: s.got || 0, subj: s.subj || [], saved: s.saved, sid: s.sid };
+  go('practice-run');
+}
+function pracAbandon() { delete P.pracSession; saveProgress(); if (PR) { PR = null; go('practice'); } else VIEWS.practice(); }
+function pracNext() { PR.i = Math.min(PR.i + 1, PR.list.length - 1); pracSave(); VIEWS['practice-run'](); }
+function pracPrev() { if (PR.i > 0) { PR.i--; pracSave(); VIEWS['practice-run'](); } }
 VIEWS['practice-run'] = () => {
+  if (!PR) return go('practice');
   const q = PR.list[PR.i];
   if (!q) return practiceSummary();
   const done = PR.done[q.id];
@@ -642,14 +664,15 @@ VIEWS['practice-run'] = () => {
   $('#view').innerHTML = `<div class="row"><h1 style="margin:0">${esc(PR.title)}</h1><span class="spacer"></span><span class="label">第 ${PR.i + 1} / ${PR.list.length} 题 · 得分 ${Math.round(PR.got * 10) / 10}</span></div>
   <div class="bar" style="margin:10px 0 16px"><i style="width:${PR.i / PR.list.length * 100}%;background:var(--pri)"></i></div>
   <div class="q"><div class="qhead"><span class="tag">${TYPE[q.type]}${q.type === 'multi' ? '（多选）' : ''}</span><span class="tag">${KP[q.kp] || q.kp}</span><span class="tag ${srcCls(q)}">${q.src}${q.no ? ' 第' + q.no + '题' : ''}</span>${gradBadge(q)}${P.q[q.id] ? `<span class="label">做过 ${P.q[q.id].seen} 次</span>` : ''}</div>${body}</div>
-  <div class="row">${PR.i > 0 ? '<button class="btn" onclick="PR.i--;VIEWS[\'practice-run\']()">上一题</button>' : ''}<span class="spacer"></span>
-  <button class="btn" onclick="practiceSummary()">结束练习</button>${done ? `<button class="btn pri" id="nextBtn" onclick="PR.i++;VIEWS['practice-run']()">下一题 →</button>` : ''}</div>`;
+  <div class="row">${PR.i > 0 ? '<button class="btn" onclick="pracPrev()">上一题</button>' : ''}<span class="spacer"></span>
+  <button class="btn" onclick="practiceSummary()">结束练习</button>${done ? `<button class="btn pri" id="nextBtn" onclick="pracNext()">下一题 →</button>` : ''}</div>`;
   const box = $('#opts');
   if (box) box.onclick = e => {
     const o = e.target.closest('.opt'); if (!o) return;
     let v = o.dataset.v, cur = PR.ans[q.id] || '';
     cur = q.type === 'multi' ? (cur.includes(v) ? cur.replace(v, '') : [...cur + v].sort().join('')) : v;
     PR.ans[q.id] = cur;
+    pracSave();
     box.querySelectorAll('.opt').forEach(x => x.classList.toggle('sel', cur.includes(x.dataset.v)));
     if (q.type !== 'multi') practiceCheck();
   };
@@ -660,6 +683,7 @@ function practiceCheck() {
   if (!a) return toast('请先作答');
   const f = gradeObjective(q, a);
   PR.done[q.id] = { f }; PR.got += f; record(q, f);
+  pracSave();
   VIEWS['practice-run']();
 }
 document.addEventListener('keydown', e => {
@@ -673,9 +697,11 @@ function practiceSubmitShort() {
   const k = keywordScore(q.rubric, a), f = k.max ? k.got / k.max : 0;
   PR.done[q.id] = { f, k }; PR.got += f; record(q, f);
   PR.subj.push({ qid: q.id, kp: q.kp, max: q.score || 10, stem: q.stem, answer: a, autoScore: Math.round(f * (q.score || 10) * 10) / 10, rubricHits: k.detail });
+  pracSave();
   VIEWS['practice-run']();
 }
 async function practiceSummary() {
+  delete P.pracSession; saveProgress();
   const n = Object.keys(PR.done).length;
   const objDone = PR.list.filter(q => PR.done[q.id] && q.type !== 'short');
   const right = objDone.filter(q => PR.done[q.id].f >= .999).length;
@@ -751,8 +777,11 @@ function checklistTable(c, k) {
 }
 function startCase(id) {
   const c = BYID[id];
-  const saved = JSON.parse(localStorage.getItem('case-' + id) || 'null');
-  CS = saved && saved.running ? saved : { id, answer: '', start: Date.now(), end: Date.now() + c.minutes * 60000, running: true };
+  let saved = JSON.parse(localStorage.getItem('case-' + id) || 'null');
+  if (!saved && P.caseDraft && P.caseDraft.id === id) saved = P.caseDraft;
+  CS = saved && saved.running !== false ? { id, answer: saved.answer || '', start: Date.now() - Math.max(0, c.minutes * 60000 - Math.max(0, (saved.end || 0) - Date.now())), end: (saved.end && saved.end > Date.now()) ? saved.end : Date.now() + c.minutes * 60000, running: true }
+    : { id, answer: '', start: Date.now(), end: Date.now() + c.minutes * 60000, running: true };
+  if (saved && saved.running !== false) toast('已恢复上次未交卷的作答');
   go('case-run');
 }
 VIEWS['case-run'] = () => {
@@ -765,7 +794,7 @@ VIEWS['case-run'] = () => {
   </div>`;
   const ta = $('#caseAns');
   const wc = () => $('#wc').textContent = ta.value.length + ' 字';
-  ta.oninput = () => { CS.answer = ta.value; localStorage.setItem('case-' + CS.id, JSON.stringify(CS)); wc(); };
+  ta.oninput = () => { CS.answer = ta.value; localStorage.setItem('case-' + CS.id, JSON.stringify(CS)); P.caseDraft = { id: CS.id, answer: CS.answer, end: CS.end, running: true }; saveProgress(); wc(); };
   wc();
   startTimer(CS.end, () => { toast('时间到！可继续写完再交卷，但请记录超时'); });
 };
@@ -773,7 +802,7 @@ async function submitCase() {
   const c = BYID[CS.id];
   if (!CS.answer.trim()) return toast('还没有作答');
   if (!confirm('确定交卷？')) return;
-  stopTimer(); CS.running = false; localStorage.removeItem('case-' + CS.id);
+  stopTimer(); CS.running = false; localStorage.removeItem('case-' + CS.id); delete P.caseDraft; saveProgress();
   const k = keywordScore(c.checklist, CS.answer);
   const frac = k.got / k.max;
   record(c, frac);
@@ -1010,7 +1039,7 @@ function memCustom() {
   let pool = memPool(src === 'all' ? 'all' : src, types);
   if (kps.length) pool = pool.filter(q => kps.includes(q.kp));
   if ($('#memshuffle').checked) pool = shuffle(pool);
-  memStart(pool, `背题 · 自定义（${pool.length} 题）`);
+  memStart(pool, '背题 · 自定义');
 }
 VIEWS['memorize-run'] = () => {
   const q = MEM.list[MEM.i];
