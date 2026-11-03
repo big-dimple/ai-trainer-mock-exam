@@ -20,3 +20,4 @@ Thumbs.db
 exam-app/server.log
 exam-app/server.pid
 exam-app/data/progress/
+exam-app/data/backups/
