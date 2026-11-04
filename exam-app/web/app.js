@@ -23,7 +23,7 @@ const EXAM_CFG = {
 const PLAN = [
   'B1.1 质检流程（25 分钟限时）+ B1.2 会议室 pandas（默写参考 notebook）',
   'B2 冷链随机森林：代码默写到 10 分钟内 + 任务三结论',
-  'B3 能源调度（35 分钟限时，40 分大题）',
+  'B3 能源调度（35 分钟限时，配分 40 → 最终 20 分大题）',
   'B4 客服培训（15 分钟）+ B1.1 复做对照 checklist 补漏',
   'C 场馆客流（30 分钟限时）→ 评卷',
   'B2 + B1.2 脱稿限时再做',
@@ -265,8 +265,8 @@ VIEWS.home = () => {
   <div class="card" style="border:2px solid var(--pri);background:linear-gradient(180deg,#f0f4ff,#fff)">
     <div class="row"><h3 style="margin:0">🧠 背题强化（考前强记主模式）</h3><span class="label">看题自测 → 空格翻答案 → 标记记住/没记住；没记住的自动进错题本并加大抽中权重</span></div>
     <div class="row" style="margin-top:10px">
-      <button class="btn pri" onclick="go('cases')">先练实操 B / C（权重 70%）</button>
-      <button class="btn pri" onclick="startExam('shortonly')">A 简答专练（A 卷 40 分）</button>
+      <button class="btn pri" onclick="go('cases')">先练实操 B / C（最终 70 分）</button>
+      <button class="btn pri" onclick="startExam('shortonly')">A 简答专练（最终 12 分）</button>
       <button class="btn" onclick="memQuick('wrong')">错题本重背（${wrongN}）</button>
       <button class="btn" onclick="memQuick('unmastered')">未掌握样卷题（${unmastered}）</button>
       <button class="btn" onclick="go('memorize')">自定义范围 →</button>
@@ -340,7 +340,11 @@ VIEWS.exam = () => {
       <label><input type="checkbox" id="adaptive" checked> 按短板加权抽题</label>
     </div>
     <button class="btn pri" onclick="startExam($('#cfg').value,'all',$('#adaptive').checked)">生成试卷并开始计时</button>
-    <p class="label"><b>考试顺序：B 技能操作（120 分钟 / 权重 50%）→ C 综合评审（30 分钟 / 20%）→ A 理论知识（90 分钟 / 30%）。</b>A 卷重点只放简答（40 分），客观题靠错题本即可。本页只出 2026 样卷原题：判断、单选每题 0.5 分，多选 1 分且少选得一半，简答 5 分。简答先按关键词预估，交卷后 AI 评卷修正。</p>
+    <p class="label"><b>一下午三场，顺序 B → C → A。最终分 = 配分 × 比重：</b><br>
+    ① <b>B 技能操作</b> 120 分钟，配分 100 × 50% = <b>最终 50 分</b>（B1-1 配 15→7.5 · B1-2 配 10→5 · B2 配 30→15 · B3 配 40→20 · B4 配 5→2.5）<br>
+    ② <b>C 综合评审</b> 30 分钟，配分 100 × 20% = <b>最终 20 分</b><br>
+    ③ <b>A 理论知识</b> 90 分钟，配分 100 × 30% = <b>最终 30 分</b>（判断配 10→3 · 单选配 40→12 · 多选配 10→3 · <b>简答配 40→12</b>）<br>
+    复习优先级：B/C 实操（最终 70 分）＞ A 简答（最终 12 分）＞ A 客观题（只清错题）。本页只出 2026 样卷原题：判断、单选每题 0.5 分，多选 1 分且少选得一半，简答 5 分。简答先按关键词预估，交卷后 AI 评卷修正。</p>
   </div>
   <div class="card"><h3 style="margin-top:0">历史成绩</h3>
     ${P.history.length ? P.history.slice().reverse().slice(0, 15).map(h => `<div class="list-item"><span class="tag">${esc(h.date)}</span><span>${esc(h.title)}</span><span class="spacer"></span><b>${h.score} / ${h.max}</b><span class="label">客观题 ${h.objScore}/${h.objMax}</span></div>`).join('') : '<div class="label">暂无</div>'}
