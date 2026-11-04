@@ -16,26 +16,25 @@ const EXAM_CFG = {
   y2026all: { name: '2026 样卷全题打乱卷（原题 83 道 · 72 分 · 65 分钟）', min: 65, only26: true, shuffle: true, parts: [['judge', 14, 0.5], ['single', 56, 0.5], ['multi', 7, 1], ['short', 6, 5]] },
   y2026obj: { name: '2026 样卷客观题打乱卷（原题 77 道 · 42 分 · 35 分钟）', min: 35, only26: true, shuffle: true, parts: [['judge', 14, 0.5], ['single', 56, 0.5], ['multi', 7, 1]] },
   y2026raw: { name: '2026 样卷原卷（原题顺序 · 72 分 · 65 分钟）', min: 65, only26: true, parts: [['judge', 14, 0.5], ['single', 56, 0.5], ['multi', 7, 1], ['short', 6, 5]] },
-  y2026: { name: '2026 模拟卷（样卷 83 道 + 补足 35 道 · 100 分 · 90 分钟，第二阶段用）', min: 90, focus: true, parts: [['judge', 20, 0.5], ['single', 80, 0.5], ['multi', 10, 1], ['short', 8, 5]] },
-  standard: { name: '2025 框架模拟卷（100 分 · 90 分钟）', min: 90, parts: [['judge', 10, 1], ['single', 40, 1], ['multi', 5, 2], ['short', 4, 10]] },
+  y2026raw: { name: '2026 样卷原卷（原题顺序 · 72 分 · 65 分钟）', min: 65, only26: true, parts: [['judge', 14, 0.5], ['single', 56, 0.5], ['multi', 7, 1], ['short', 6, 5]] },
   quick: { name: '快速小卷（36 分 · 30 分钟）', min: 30, parts: [['judge', 5, 1], ['single', 15, 1], ['multi', 3, 2], ['short', 1, 10]] },
   shortonly: { name: '简答专练卷（30 分 · 36 分钟，每题 5 分）', min: 36, focus: true, parts: [['short', 6, 5]] },
 };
 const PLAN = [
-  '样卷客观题 77 题通刷（样卷解析页遮挡答案自测），错题进错题本',
-  '样卷简答 6 题：先背参考答案骨架，再“样卷简答专练”限时作答 → 评卷',
-  '样卷 B1.1 质检流程（25 分钟限时）+ B1.2 会议室 pandas（默写参考 notebook）',
-  '样卷 B2 冷链随机森林：代码默写到 10 分钟内 + 任务三结论',
-  '样卷 B3 能源调度（35 分钟限时）+ B4 客服培训（15 分钟）',
-  '样卷 C 场馆客流（30 分钟限时）→ 评卷',
-  '第 1 次“样卷全题打乱卷”→ 评卷；“刷未掌握的样卷题”',
-  '未掌握样卷题清零 + 错题本清零',
-  '样卷 B2 + B1.2 脱稿限时再做，对照 checklist 补漏',
-  '第 2 次“样卷全题打乱卷” + 低于 90% 的简答重写',
-  '样卷 B3 + C 脱稿限时再做',
-  '样卷 B1.1 + B4 脱稿限时再做；低于 85 分的实操再练一遍',
-  '第 3 次“样卷全题打乱卷”→ 对照看板“熟练标准”查漏',
-  '样卷原卷全真模拟 + 参考答案通读；熟练标准全部达标后再进入变式题阶段',
+  'B1.1 质检流程（25 分钟限时）+ B1.2 会议室 pandas（默写参考 notebook）',
+  'B2 冷链随机森林：代码默写到 10 分钟内 + 任务三结论',
+  'B3 能源调度（35 分钟限时，40 分大题）',
+  'B4 客服培训（15 分钟）+ B1.1 复做对照 checklist 补漏',
+  'C 场馆客流（30 分钟限时）→ 评卷',
+  'B2 + B1.2 脱稿限时再做',
+  'B3 + C 脱稿限时再做；低于 85 分的实操再练一遍',
+  'A 简答 6 题：背参考答案骨架 → 简答专练限时作答 → 评卷',
+  'A 简答低于 90% 的重写；24 条口诀通背一遍',
+  'A 简答专练第 2 轮 + B1.1 / B4 脱稿再做',
+  '错题本清零（客观题只清错题，不全面刷）',
+  '样卷全题打乱卷 1 次找感觉 + 未掌握样卷题清零',
+  '样卷原卷全真模拟 + 参考答案通读',
+  '考前收尾：24 条口诀过一遍 + B/C 各题流程图默一遍',
 ];
 const GATE = { objStreak: 3, fullExams: 2, shortPass: 0.9, casePass: 0.85 };
 
@@ -266,17 +265,16 @@ VIEWS.home = () => {
   <div class="card" style="border:2px solid var(--pri);background:linear-gradient(180deg,#f0f4ff,#fff)">
     <div class="row"><h3 style="margin:0">🧠 背题强化（考前强记主模式）</h3><span class="label">看题自测 → 空格翻答案 → 标记记住/没记住；没记住的自动进错题本并加大抽中权重</span></div>
     <div class="row" style="margin-top:10px">
-      <button class="btn pri" onclick="memQuick('unmastered')">先背未掌握样卷题（${unmastered}）</button>
-      <button class="btn" onclick="memQuick('y26obj')">样卷客观题（${ys.objs.length}）</button>
+      <button class="btn pri" onclick="go('cases')">先练实操 B / C（权重 70%）</button>
+      <button class="btn pri" onclick="startExam('shortonly')">A 简答专练（A 卷 40 分）</button>
       <button class="btn" onclick="memQuick('wrong')">错题本重背（${wrongN}）</button>
-      <button class="btn" onclick="startExam('y2026all')">刷样卷打乱卷</button>
+      <button class="btn" onclick="memQuick('unmastered')">未掌握样卷题（${unmastered}）</button>
       <button class="btn" onclick="go('memorize')">自定义范围 →</button>
     </div>
   </div>
   <div class="card y26card">
     <div class="row"><h3 style="margin:0">🎯 2026 样卷 · 原题熟练</h3>
-      ${ys.unlocked ? `<span class="tag ok">第二阶段 · 变式题（${esc(P.settings.stage2At)} 达标）</span>` : '<span class="tag y26">第一阶段 · 只练原题</span>'}
-      <span class="spacer"></span><span class="label">${ys.unlocked ? '原题已熟练，可以进入变式题阶段' : '四项熟练标准全部达标后，再进入变式题阶段'}</span></div>
+      <span class="spacer"></span><span class="label">只练 2026 样卷原题</span></div>
     <div class="row" style="margin:10px 0 6px;align-items:baseline"><div class="stat">${ys.mastered}<small> / ${ys.total} 客观题已熟练（${pct(ys.mastered)}%）</small></div>
       <span class="label">做过 ${ys.seen} · 错题本中 ${ys.wrong} · 简答/实操练过 ${ys.subjDone} / ${ys.subj.length}</span></div>
     <div class="bar"><i style="width:${pct(ys.mastered)}%;background:var(--ok)"></i></div>
@@ -289,7 +287,6 @@ VIEWS.home = () => {
       <button class="btn" onclick="go('cases')">样卷实操 B/C${subjLeft.filter(q => q.type === 'case').length ? `（未达标 ${subjLeft.filter(q => q.type === 'case').length}）` : ''}</button>
       <button class="btn" onclick="startExam('y2026raw')">原题顺序全真</button>
       <button class="btn" onclick="RV.year='2026';go('review')">样卷解析</button>
-      ${ys.unlocked ? `<button class="btn" onclick="startExam('y2026')">2026 模拟卷（含补足题）</button>` : ''}
     </div>
   </div>
   <div class="grid g4">
@@ -308,16 +305,16 @@ VIEWS.home = () => {
     <div class="card">
       <h3 style="margin-top:0">快速开始</h3>
       <div class="row" style="margin-bottom:10px">
-        <button class="btn pri" onclick="startExam('y2026all')">样卷全题打乱卷</button>
-        <button class="btn" onclick="startExam('quick')">30 分钟小卷</button>
+        <button class="btn pri" onclick="go('cases')">实操 B / C（先考）</button>
+        <button class="btn" onclick="startExam('shortonly')">简答专练</button>
+        <button class="btn" onclick="startExam('y2026all')">样卷全题打乱卷</button>
         <button class="btn" onclick="startWeak()">弱项强化 30 题</button>
-        <button class="btn" onclick="go('cases')">实操 B/C</button>
       </div>
       <h3>短板诊断</h3>
       ${weak.length ? weak.map(w => `<div>⚠️ <b>${KP[w.k]}</b> 得分率 ${Math.round(w.acc * 100)}%（${w.seen} 次）<a onclick="startPractice(['${w.k}'])"> 专练 →</a></div>`).join('') : '<div class="label">还没有作答数据，先做一套模拟卷吧。</div>'}
       ${untried.length ? `<div class="label" style="margin-top:8px">未练过：${untried.map(x => KP[x.k]).join('、')}</div>` : ''}
       <h3>题库</h3>
-      <div class="label">客观题 ${objCount} · 简答 ${shortCount} · 实操/综合 ${caseCount}（2026 样卷 ${BANK.filter(q => q.src === Y26).length} 道 · 2025 真题 ${BANK.filter(q => q.src === Y25).length} 道）</div>
+      <div class="label">客观题 ${objCount} · 简答 ${shortCount} · 实操/综合 ${caseCount}（2026 样卷 ${BANK.filter(q => q.src === Y26).length} 道）</div>
       <div class="notice" style="margin-top:10px">${CONF.llm ? `主观题交卷后由 <b>${esc(CONF.model)}</b> 自动评卷，结果在交卷页和“评卷记录”中显示。` : '服务端未配置评卷模型，主观题暂按关键词预估打分。'}</div>
     </div>
   </div>
@@ -340,12 +337,10 @@ VIEWS.exam = () => {
     <h3 style="margin-top:0">组卷设置</h3>
     <div class="row" style="margin-bottom:12px">
       <label>试卷类型 <select id="cfg">${Object.entries(EXAM_CFG).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('')}</select></label>
-      <label>补足题源 <select id="srcSel"><option value="all">2025 真题</option></select></label>
       <label><input type="checkbox" id="adaptive" checked> 按短板加权抽题</label>
     </div>
-    <button class="btn pri" onclick="startExam($('#cfg').value,$('#srcSel').value,$('#adaptive').checked)">生成试卷并开始计时</button>
-    <p class="label"><b>第一阶段（原题熟练）</b>：用“样卷全题打乱卷 / 客观题打乱卷”，只出 2026 样卷原题、每次打乱题序，分值按 2026 框架（判断、单选每题 0.5 分，多选 1 分且少选得一半，简答 5 分）。打乱卷的客观题连续 2 次满分是进入第二阶段的条件之一。<br>
-    <b>第二阶段</b>：“2026 模拟卷”按完整 2026 框架出 118 题 100 分，样卷 83 道全部入卷，其余 35 道从“补足题源”按短板加权抽取。简答先按关键词预估，交卷后 AI 评卷修正。</p>
+    <button class="btn pri" onclick="startExam($('#cfg').value,'all',$('#adaptive').checked)">生成试卷并开始计时</button>
+    <p class="label"><b>考试顺序：B 技能操作（120 分钟 / 权重 50%）→ C 综合评审（30 分钟 / 20%）→ A 理论知识（90 分钟 / 30%）。</b>A 卷重点只放简答（40 分），客观题靠错题本即可。本页只出 2026 样卷原题：判断、单选每题 0.5 分，多选 1 分且少选得一半，简答 5 分。简答先按关键词预估，交卷后 AI 评卷修正。</p>
   </div>
   <div class="card"><h3 style="margin-top:0">历史成绩</h3>
     ${P.history.length ? P.history.slice().reverse().slice(0, 15).map(h => `<div class="list-item"><span class="tag">${esc(h.date)}</span><span>${esc(h.title)}</span><span class="spacer"></span><b>${h.score} / ${h.max}</b><span class="label">客观题 ${h.objScore}/${h.objMax}</span></div>`).join('') : '<div class="label">暂无</div>'}
@@ -363,8 +358,6 @@ function buildPaper(cfgKey, src, adaptive) {
     }
     if (!cfg.only26 && picked.length < n) {
       let pool = cfg.focus ? all.filter(q => q.src !== Y26) : all;
-      if (src === 'new') pool = pool.filter(q => q.src !== Y25 && q.src !== Y26);
-      if (src === 'y25') pool = pool.filter(q => q.src === Y25);
       picked = cfg.focus ? shuffle(picked.concat(pickWeighted(pool, n - picked.length, adaptive))) : pickWeighted(pool, n, adaptive);
     }
     picked.forEach(q => qs.push({ id: q.id, pts }));
@@ -601,7 +594,7 @@ VIEWS.practice = () => {
     <div class="chips" id="kpchips">${counts(['judge', 'single', 'multi', 'short']).map(([k, n]) => `<span class="chip" data-k="${k}">${KP[k]} <small>${Math.round(kpAcc(k) * 100)}% · ${n}题</small></span>`).join('')}</div>
     <div class="row" style="margin-top:14px">
       <label>题型 <select id="ptype"><option value="obj">客观题（判断/单选/多选）</option><option value="judge">仅判断</option><option value="single">仅单选</option><option value="multi">仅多选</option><option value="short">仅简答</option></select></label>
-      <label>题源 <select id="psrc"><option value="all">全部（2026 样卷优先抽）</option><option value="y26" ${y26Stats().unlocked ? '' : 'selected'}>仅 2026 样卷</option><option value="y25">2025 真题</option></select></label>
+      <label>题源 <select id="psrc"><option value="y26" selected>2026 样卷</option></select></label>
       <label>数量 <input type="number" id="pn" value="20" min="1" max="200" style="width:80px"></label>
       <button class="btn pri" onclick="practiceFromForm()">开始练习</button>
       <button class="btn" onclick="startWeak()">让系统按短板出题</button>
@@ -618,8 +611,6 @@ function startPractice(kps, t = 'obj', src = 'all', n = 20) {
   const types = t === 'obj' ? ['judge', 'single', 'multi'] : [t];
   let pool = BANK.filter(q => types.includes(q.type) && (!kps.length || kps.includes(q.kp)));
   if (src === 'y26') pool = pool.filter(q => q.src === Y26);
-  if (src === 'y25') pool = pool.filter(q => q.src === Y25);
-  if (src === 'new') pool = pool.filter(q => q.src !== Y25 && q.src !== Y26);
   if (!pool.length) return toast('没有符合条件的题目');
   startPracticeList(pickWeighted(pool, n, true), (kps.length ? kps.map(k => KP[k]).join('、') : '全部知识点') + ' · 专项');
 }
@@ -825,13 +816,12 @@ async function submitCase() {
 /* ====== 真题 / 样卷解析 ====== */
 let RV = { tab: 'judge', hide: false, year: '2026' };
 const REVIEW_DOCS = {
-  '2026': ['2026/A理论参考答案.md', '2026/B1.1参考答案.md', '2026/B1.2参考答案.md', '2026/B2参考答案.md', '2026/B3参考答案.md', '2026/B4参考答案.md', '2026/C参考答案.md', '11-每日速记卡.md'],
-  '2025': ['01-评委拆解与学习路径.md', '02-A理论参考答案.md', '03-下午场总览-思考路径与学习方法.md', '04-B1.1参考答案与思考路径.md', '05-B1.2参考答案与思考路径.md', '06-B2参考答案与思考路径.md', '07-B3参考答案与思考路径.md', '08-B4参考答案与思考路径.md', '09-C参考答案与思考路径.md', '11-每日速记卡.md'],
+  '2026': ['2026/A理论参考答案.md', '2026/B1.1参考答案.md', '2026/B1.2参考答案.md', '2026/B2参考答案.md', '2026/B3参考答案.md', '2026/B4参考答案.md', '2026/C参考答案.md'],
 };
 VIEWS.review = (tab, year) => {
   if (tab) RV.tab = tab;
   if (year) RV.year = year;
-  const SRCN = RV.year === '2026' ? Y26 : Y25;
+  const SRCN = Y26;
   const y = BANK.filter(q => q.src === SRCN);
   const cnt = t => y.filter(q => q.type === t).length;
   const tabs = [['judge', '判断 ' + cnt('judge')], ['single', '单选 ' + cnt('single')], ['multi', '多选 ' + cnt('multi')], ['short', '简答 ' + cnt('short')], ['case', '实操 B/C'], ['docs', '参考文档']];
@@ -851,7 +841,6 @@ VIEWS.review = (tab, year) => {
     body = `<div class="card">${REVIEW_DOCS[RV.year].map(d => `<div class="list-item"><span>📄 ${d}</span><span class="spacer"></span><button class="btn sm" onclick="showDoc('${d}')">打开</button></div>`).join('')}</div>`;
   }
   $('#view').innerHTML = `<div class="row"><h1 style="margin:0">真题 / 样卷解析</h1>
-    <div class="tabs" style="margin:0 0 0 12px">${[['2026', '2026 样卷（必考）'], ['2025', '2025 真题']].map(([k, t]) => `<a class="${RV.year === k ? 'on' : ''}" onclick="VIEWS.review(null,'${k}')">${t}</a>`).join('')}</div>
     <span class="spacer"></span><label><input type="checkbox" id="hideAns" ${RV.hide ? 'checked' : ''}> 遮挡答案自测（点击模糊区显示）</label></div>
   <p class="label">官方未公布标准答案，以下为依据法规与专业知识整理的参考答案；每题附“答题思路”（快速判断/排除方法）。${RV.year === '2026' ? '2026 评分框架：判断/单选每题 0.5 分，多选每题 1 分，简答每题 5 分。' : ''}</p>
   <div class="tabs">${tabs.map(([k, t]) => `<a class="${RV.tab === k ? 'on' : ''}" onclick="VIEWS.review('${k}')">${t}</a>`).join('')}
@@ -969,7 +958,6 @@ function memStart(list, title) {
 function memPool(scopeKey, types) {
   let pool = BANK.filter(q => types.includes(q.type));
   if (scopeKey === 'y26') pool = pool.filter(q => q.src === Y26);
-  if (scopeKey === 'y25') pool = pool.filter(q => q.src === Y25);
   if (scopeKey === 'wrong') pool = pool.filter(q => P.wrong[q.id]);
   if (scopeKey === 'unmastered') pool = pool.filter(q => q.src === Y26 && !mastered(q));
   return pool;
@@ -977,7 +965,7 @@ function memPool(scopeKey, types) {
 function memQuick(scopeKey) {
   const types = scopeKey === 'y26obj' ? ['judge', 'single', 'multi'] : ['judge', 'single', 'multi', 'short'];
   const key = scopeKey === 'y26obj' ? 'y26' : scopeKey;
-  const names = { y26: '2026 样卷', y26obj: '2026 样卷客观题', y25: '2025 真题', wrong: '错题本重背', unmastered: '未掌握样卷题' };
+  const names = { y26: '2026 样卷', y26obj: '2026 样卷客观题', wrong: '错题本重背', unmastered: '未掌握样卷题' };
   const title = `背题 · ${names[scopeKey]}`;
   // 同范围的背题没背完时直接续背，不重新开始
   const saved = P.memSession || JSON.parse(localStorage.getItem('mem') || 'null');
@@ -1003,11 +991,10 @@ VIEWS.memorize = () => {
   <div class="card">
     <h3 style="margin-top:0">快速入口（按考试优先级）</h3>
     <div class="row">
-      <button class="btn pri" onclick="memQuick('unmastered')">未掌握样卷题（${cnt('unmastered', ['judge', 'single', 'multi'])}）</button>
-      <button class="btn" onclick="memQuick('y26obj')">2026 样卷客观题（${cnt('y26', ['judge', 'single', 'multi'])}）</button>
-      <button class="btn" onclick="memQuick('y26')">2026 样卷全部（含简答 ${cnt('y26', ['short'])}）</button>
+      <button class="btn pri" onclick="memQuick('y26')">2026 样卷全部（含简答 ${cnt('y26', ['short'])}）</button>
       <button class="btn" onclick="memQuick('wrong')">错题本（${Object.keys(P.wrong).filter(id => BYID[id] && isObj(BYID[id])).length}）</button>
-      <button class="btn" onclick="memQuick('y25')">2025 真题（${cnt('y25', ['judge', 'single', 'multi', 'short'])}）</button>
+      <button class="btn" onclick="memQuick('unmastered')">未掌握样卷题（${cnt('unmastered', ['judge', 'single', 'multi'])}）</button>
+      <button class="btn" onclick="memQuick('y26obj')">2026 样卷客观题（${cnt('y26', ['judge', 'single', 'multi'])}）</button>
       <button class="btn" onclick="memQuick('all')">全部题库</button>
     </div>
   </div>
@@ -1015,7 +1002,7 @@ VIEWS.memorize = () => {
     <h3 style="margin-top:0">自定义范围</h3>
     <div class="label" style="margin-bottom:6px">题源</div>
     <div class="chips" id="memsrc">
-      <span class="chip on" data-v="all">全部</span><span class="chip" data-v="y26">2026 样卷</span><span class="chip" data-v="y25">2025 真题</span>
+      <span class="chip on" data-v="all">全部</span><span class="chip" data-v="y26">2026 样卷</span>
     </div>
     <div class="label" style="margin:12px 0 6px">题型</div>
     <div class="chips" id="memtype">
